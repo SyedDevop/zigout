@@ -3,12 +3,16 @@ const math = std.math;
 const c = @cImport({
     @cInclude("SDL2/SDL.h");
 });
+const rl = @import("raylib");
+
 const overlaps = c.SDL_HasIntersection;
 const FPS = 60;
 const DELTA_TIME_SEC: f32 = 1.0 / @as(f32, @floatFromInt(FPS));
 const WINDOW_WIDTH = 800;
 const WINDOW_HEIGHT = 600;
-const BACKGROUND_COLOR = 0xFF181818;
+const PAUSE_TEXT_FS: u8 = 64;
+const PAUSE_TEXT = "Game Is Paused";
+const BACKGROUND_COLOR = 0x181818FF;
 const PROJ_SIZE: f32 = 25 * 0.80;
 const PROJ_SPEED: f32 = 350;
 const PROJ_COLOR = 0xFFFFFFFF;
@@ -16,7 +20,7 @@ const BAR_LEN: f32 = 100;
 const BAR_THICCNESS: f32 = PROJ_SIZE;
 const BAR_Y: f32 = WINDOW_HEIGHT - PROJ_SIZE - 50;
 const BAR_SPEED: f32 = PROJ_SPEED * 1.5;
-const BAR_COLOR = 0xFF3030FF;
+const BAR_COLOR = 0x3030FFFF;
 const TARGET_WIDTH = BAR_LEN;
 const TARGET_HEIGHT = PROJ_SIZE;
 const TARGET_PADDING_X = 20;
@@ -26,12 +30,19 @@ const TARGET_COLS = 5;
 const TARGET_GRID_WIDTH = (TARGET_COLS * TARGET_WIDTH + (TARGET_COLS - 1) * TARGET_PADDING_X);
 const TARGET_GRID_X = WINDOW_WIDTH / 2 - TARGET_GRID_WIDTH / 2;
 const TARGET_GRID_Y = 50;
-const TARGET_COLOR = 0xFF30FF30;
+const TARGET_COLOR = 0x30FF30FF;
 
 const Target = struct {
     x: f32,
     y: f32,
     dead: bool = false,
+};
+
+const Rect = struct {
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
 };
 
 fn init_targets() [TARGET_ROWS * TARGET_COLS]Target {
@@ -50,7 +61,9 @@ fn init_targets() [TARGET_ROWS * TARGET_COLS]Target {
 }
 
 var targets_pool = init_targets();
-var bar_x: f32 = WINDOW_WIDTH / 2 - BAR_LEN / 2;
+
+var tbar: Rect = .{ .x = WINDOW_WIDTH / 2 - BAR_LEN / 2, .y = BAR_Y - BAR_THICCNESS / 2, .w = BAR_LEN, .h = BAR_THICCNESS };
+
 var bar_dx: f32 = 0;
 var proj_x: f32 = WINDOW_WIDTH / 2 - PROJ_SIZE / 2;
 var proj_y: f32 = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE;
@@ -59,9 +72,12 @@ var proj_dy: f32 = 1;
 var quit = false;
 var pause = false;
 var started = false;
+var show_fps = false;
+
 // TODO: death
 // TODO: score
 // TODO: victory
+// TODO: Sound on collision's
 
 fn make_rect(x: f32, y: f32, w: f32, h: f32) c.SDL_Rect {
     return c.SDL_Rect{
@@ -151,84 +167,152 @@ fn update(dt: f32) void {
     }
 }
 
-fn render(renderer: *c.SDL_Renderer) void {
-    set_color(renderer, PROJ_COLOR);
-    _ = c.SDL_RenderFillRect(renderer, &proj_rect(proj_x, proj_y));
-
-    set_color(renderer, BAR_COLOR);
-    _ = c.SDL_RenderFillRect(renderer, &bar_rect(bar_x));
-
-    set_color(renderer, TARGET_COLOR);
+fn render() void {
+    drawBar(bar_x);
+    drawProj(proj_x, proj_y);
     for (targets_pool) |target| {
         if (!target.dead) {
-            _ = c.SDL_RenderFillRect(renderer, &target_rect(target));
+            drawTarget(&target);
         }
     }
 }
 
+fn bar() Rect {
+    return .{ .x = bar_x, .y = BAR_Y - BAR_THICCNESS / 2, .w = BAR_LEN, .h = BAR_THICCNESS };
+}
+fn proj() Rect {
+    return .{ .x = proj_x, .y = proj_y, .w = PROJ_SIZE, .h = PROJ_SIZE };
+}
+
+fn sides(object: Rect) Rect {
+    return .{ .x = object.x, .y = object.y, .w = object.x + object.w, .h = object.y + object.h };
+}
+fn overlapsss(a: Rect, b: Rect) bool {
+    const ra = sides(a); // A Walls
+    const rb = sides(b); // B Walls
+    return !(ra.w < rb.x or rb.w < ra.x or ra.h < rb.y or rb.h < ra.y);
+}
+fn drawBar(x: f32) void {
+    rl.drawRectangle(@as(i32, @intFromFloat(x)), BAR_Y - BAR_THICCNESS / 2, BAR_LEN, BAR_THICCNESS, rl.getColor(BAR_COLOR));
+}
+fn drawProj(x: f32, y: f32) void {
+    const nx = @as(i32, @intFromFloat(x));
+    const ny = @as(i32, @intFromFloat(y));
+    rl.drawRectangle(nx, ny, PROJ_SIZE, PROJ_SIZE, rl.getColor(PROJ_COLOR));
+}
+fn drawTarget(target: *const Target) void {
+    const nx = @as(i32, @intFromFloat(target.x));
+    const ny = @as(i32, @intFromFloat(target.y));
+    rl.drawRectangle(nx, ny, TARGET_WIDTH, TARGET_HEIGHT, rl.getColor(TARGET_COLOR));
+}
 pub fn main() !void {
-    if (c.SDL_Init(c.SDL_INIT_VIDEO) < 0) {
-        c.SDL_Log("Unable to initialize SDL: %s", c.SDL_GetError());
-        return error.SDLInitializationFailed;
-    }
-    defer c.SDL_Quit();
+    const isSdl = false;
+    if (!isSdl) {
+        rl.initWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "[Z]brake");
+        defer rl.closeWindow(); // Close window and OpenGL context
+        rl.setTargetFPS(FPS); // Set our game to run at 60 frames-per-second
+        //
+        while (!rl.windowShouldClose()) { // Detect window close button or ESC key
+            const dt: f32 = rl.getFrameTime();
+            bar_dx = 0;
+            if (rl.isKeyDown(.a) or rl.isKeyDown(.left)) {
+                bar_dx -= 1;
+                if (!started) {
+                    started = true;
+                    proj_dx = 1;
+                }
+            }
+            if (rl.isKeyDown(.d) or rl.isKeyDown(.right)) {
+                bar_dx += 1;
+                if (!started) {
+                    started = true;
+                    proj_dx = -1;
+                }
+            }
+            if (rl.isKeyPressed(.f4)) show_fps = !show_fps;
+            if (rl.isKeyPressed(.space)) pause = !pause;
+            update(dt);
+            // Draw
+            //----------------------------------------------------------------------------------
+            rl.beginDrawing();
+            defer rl.endDrawing();
+            rl.clearBackground(rl.getColor(BACKGROUND_COLOR));
+            render();
+            if (show_fps) rl.drawFPS(10, 10);
+            if (pause) rl.drawText(
+                PAUSE_TEXT,
+                WINDOW_WIDTH / 2 - (@as(f32, PAUSE_TEXT.len) * PAUSE_TEXT_FS) / 4.0,
+                WINDOW_HEIGHT / 2,
+                PAUSE_TEXT_FS,
+                rl.getColor(PROJ_COLOR),
+            );
+        }
+    } else {
 
-    const window = c.SDL_CreateWindow("Zigout", 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, 0) orelse {
-        c.SDL_Log("Unable to initialize SDL: %s", c.SDL_GetError());
-        return error.SDLInitializationFailed;
-    };
-    defer c.SDL_DestroyWindow(window);
+        // ------------------ SDL ---------------------------
+        if (c.SDL_Init(c.SDL_INIT_VIDEO) < 0) {
+            c.SDL_Log("Unable to initialize SDL: %s", c.SDL_GetError());
+            return error.SDLInitializationFailed;
+        }
+        defer c.SDL_Quit();
 
-    const renderer = c.SDL_CreateRenderer(window, -1, c.SDL_RENDERER_ACCELERATED) orelse {
-        c.SDL_Log("Unable to initialize SDL: %s", c.SDL_GetError());
-        return error.SDLInitializationFailed;
-    };
-    defer c.SDL_DestroyRenderer(renderer);
+        const window = c.SDL_CreateWindow("Zigout", 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, 0) orelse {
+            c.SDL_Log("Unable to initialize SDL: %s", c.SDL_GetError());
+            return error.SDLInitializationFailed;
+        };
+        defer c.SDL_DestroyWindow(window);
 
-    const keyboard = c.SDL_GetKeyboardState(null);
+        const renderer = c.SDL_CreateRenderer(window, -1, c.SDL_RENDERER_ACCELERATED) orelse {
+            c.SDL_Log("Unable to initialize SDL: %s", c.SDL_GetError());
+            return error.SDLInitializationFailed;
+        };
+        defer c.SDL_DestroyRenderer(renderer);
 
-    while (!quit) {
-        var event: c.SDL_Event = undefined;
-        while (c.SDL_PollEvent(&event) != 0) {
-            switch (event.type) {
-                c.SDL_QUIT => {
-                    quit = true;
-                },
-                c.SDL_KEYDOWN => switch (event.key.keysym.sym) {
-                    ' ' => {
-                        pause = !pause;
+        const keyboard = c.SDL_GetKeyboardState(null);
+
+        while (!quit) {
+            var event: c.SDL_Event = undefined;
+            while (c.SDL_PollEvent(&event) != 0) {
+                switch (event.type) {
+                    c.SDL_QUIT => {
+                        quit = true;
+                    },
+                    c.SDL_KEYDOWN => switch (event.key.keysym.sym) {
+                        ' ' => {
+                            pause = !pause;
+                        },
+                        else => {},
                     },
                     else => {},
-                },
-                else => {},
+                }
             }
-        }
 
-        bar_dx = 0;
-        if (keyboard[c.SDL_SCANCODE_A] != 0) {
-            bar_dx += -1;
-            if (!started) {
-                started = true;
-                proj_dx = -1;
+            bar_dx = 0;
+            if (keyboard[c.SDL_SCANCODE_A] != 0) {
+                bar_dx += -1;
+                if (!started) {
+                    started = true;
+                    proj_dx = -1;
+                }
             }
-        }
-        if (keyboard[c.SDL_SCANCODE_D] != 0) {
-            bar_dx += 1;
-            if (!started) {
-                started = true;
-                proj_dx = 1;
+            if (keyboard[c.SDL_SCANCODE_D] != 0) {
+                bar_dx += 1;
+                if (!started) {
+                    started = true;
+                    proj_dx = 1;
+                }
             }
+
+            update(DELTA_TIME_SEC);
+
+            set_color(renderer, BACKGROUND_COLOR);
+            _ = c.SDL_RenderClear(renderer);
+
+            render(renderer);
+
+            c.SDL_RenderPresent(renderer);
+
+            c.SDL_Delay(1000 / FPS);
         }
-
-        update(DELTA_TIME_SEC);
-
-        set_color(renderer, BACKGROUND_COLOR);
-        _ = c.SDL_RenderClear(renderer);
-
-        render(renderer);
-
-        c.SDL_RenderPresent(renderer);
-
-        c.SDL_Delay(1000 / FPS);
     }
 }

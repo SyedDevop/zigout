@@ -8,6 +8,7 @@ const WINDOW_WIDTH = 1024;
 const WINDOW_HEIGHT = 800;
 const PAUSE_TEXT_FS: u8 = 64;
 const PAUSE_TEXT = "Game Is Paused";
+const GAME_WONE_TEXT = "Game Wone";
 const BACKGROUND_COLOR = 0x181818FF;
 const PROJ_SIZE: f32 = 25 * 0.80;
 const PROJ_SPEED: f32 = 350;
@@ -21,8 +22,8 @@ const TARGET_WIDTH = BAR_LEN;
 const TARGET_HEIGHT = PROJ_SIZE;
 const TARGET_PADDING_X = 20;
 const TARGET_PADDING_Y = 50;
-const TARGET_ROWS = 6;
-const TARGET_COLS = 7;
+const TARGET_ROWS = 3;
+const TARGET_COLS = 4;
 const TARGET_GRID_WIDTH = (TARGET_COLS * TARGET_WIDTH + (TARGET_COLS - 1) * TARGET_PADDING_X);
 const TARGET_GRID_X = WINDOW_WIDTH / 2 - TARGET_GRID_WIDTH / 2;
 const TARGET_GRID_Y = 50;
@@ -82,6 +83,7 @@ var proj: Entity = .{ .dx = 1, .dy = 1, .color = PROJ_COLOR, .react = .{
     .height = PROJ_SIZE,
 } };
 var collid_sound: rl.Sound = undefined;
+var score: u32 = 0;
 var quit = false;
 var pause = false;
 var started = false;
@@ -90,7 +92,6 @@ var show_fps = false;
 // TODO: death
 // TODO: score
 // TODO: victory
-// TODO: Sound on collision's
 
 fn horz_collision(dt: f32) void {
     const proj_nx: f32 = proj.react.x + proj.dx * PROJ_SPEED * dt;
@@ -101,6 +102,7 @@ fn horz_collision(dt: f32) void {
     for (targets_pool[0..]) |*it| {
         if (!it.dead and proj.overlaps(it.*, proj_nx, null)) {
             rl.playSound(collid_sound);
+            score += 1;
             it.dead = true;
             proj.dx *= -1;
             return;
@@ -123,6 +125,7 @@ fn vert_collision(dt: f32) void {
     for (targets_pool[0..]) |*it| {
         if (!it.dead and proj.overlaps(it.*, null, proj_ny)) {
             rl.playSound(collid_sound);
+            score += 1;
             it.dead = true;
             proj.dy *= -1;
             return;
@@ -156,6 +159,7 @@ fn update(dt: f32) void {
 }
 
 fn render() void {
+    rl.drawText(rl.textFormat("Score: %d", .{score}), WINDOW_WIDTH - 150, 10, 20, rl.getColor(PROJ_COLOR));
     drawEntity(&bar);
     drawEntity(&proj);
     for (targets_pool) |target| {
@@ -214,5 +218,15 @@ pub fn main() !void {
             PAUSE_TEXT_FS,
             rl.getColor(PROJ_COLOR),
         );
+        if (score >= TARGET_ROWS * TARGET_COLS) {
+            started = false;
+            rl.drawText(
+                GAME_WONE_TEXT,
+                WINDOW_WIDTH / 2 - (@as(f32, GAME_WONE_TEXT.len) * PAUSE_TEXT_FS) / 4.0,
+                WINDOW_HEIGHT / 2,
+                PAUSE_TEXT_FS,
+                rl.getColor(PROJ_COLOR),
+            );
+        }
     }
 }

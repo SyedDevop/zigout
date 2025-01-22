@@ -4,8 +4,8 @@ const rl = @import("raylib");
 
 const FPS = 60;
 const DELTA_TIME_SEC: f32 = 1.0 / @as(f32, @floatFromInt(FPS));
-const WINDOW_WIDTH = 800;
-const WINDOW_HEIGHT = 600;
+const WINDOW_WIDTH = 1024;
+const WINDOW_HEIGHT = 800;
 const PAUSE_TEXT_FS: u8 = 64;
 const PAUSE_TEXT = "Game Is Paused";
 const BACKGROUND_COLOR = 0x181818FF;
@@ -21,18 +21,12 @@ const TARGET_WIDTH = BAR_LEN;
 const TARGET_HEIGHT = PROJ_SIZE;
 const TARGET_PADDING_X = 20;
 const TARGET_PADDING_Y = 50;
-const TARGET_ROWS = 4;
-const TARGET_COLS = 5;
+const TARGET_ROWS = 6;
+const TARGET_COLS = 7;
 const TARGET_GRID_WIDTH = (TARGET_COLS * TARGET_WIDTH + (TARGET_COLS - 1) * TARGET_PADDING_X);
 const TARGET_GRID_X = WINDOW_WIDTH / 2 - TARGET_GRID_WIDTH / 2;
 const TARGET_GRID_Y = 50;
 const TARGET_COLOR = 0x30FF30FF;
-
-const Target = struct {
-    x: f32,
-    y: f32,
-    dead: bool = false,
-};
 
 const Entity = struct {
     dx: f32 = 0,
@@ -61,10 +55,8 @@ const Entity = struct {
 
 fn init_targets() [TARGET_ROWS * TARGET_COLS]Entity {
     var targets: [TARGET_ROWS * TARGET_COLS]Entity = undefined;
-    var row: usize = 0;
-    while (row < TARGET_ROWS) : (row += 1) {
-        var col: usize = 0;
-        while (col < TARGET_COLS) : (col += 1) {
+    for (0..TARGET_ROWS) |row| {
+        for (0..TARGET_COLS) |col| {
             targets[row * TARGET_COLS + col] = Entity{ .color = TARGET_COLOR, .react = .{
                 .x = TARGET_GRID_X + (TARGET_WIDTH + TARGET_PADDING_X) * @as(f32, @floatFromInt(col)),
                 .y = TARGET_GRID_Y + TARGET_PADDING_Y * @as(f32, @floatFromInt(row)),
@@ -77,18 +69,19 @@ fn init_targets() [TARGET_ROWS * TARGET_COLS]Entity {
 }
 
 var targets_pool = init_targets();
-var tbar: Entity = .{ .color = BAR_COLOR, .react = .{
+var bar: Entity = .{ .color = BAR_COLOR, .react = .{
     .x = WINDOW_WIDTH / 2 - BAR_LEN / 2,
     .y = BAR_Y - BAR_THICCNESS / 2,
     .width = BAR_LEN,
     .height = BAR_THICCNESS,
 } };
-var tproj: Entity = .{ .dx = 1, .dy = 1, .color = PROJ_COLOR, .react = .{
+var proj: Entity = .{ .dx = 1, .dy = 1, .color = PROJ_COLOR, .react = .{
     .x = WINDOW_WIDTH / 2 - PROJ_SIZE / 2,
     .y = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE,
     .width = PROJ_SIZE,
     .height = PROJ_SIZE,
 } };
+var collid_sound: rl.Sound = undefined;
 var quit = false;
 var pause = false;
 var started = false;
@@ -100,59 +93,60 @@ var show_fps = false;
 // TODO: Sound on collision's
 
 fn horz_collision(dt: f32) void {
-    const proj_nx: f32 = tproj.react.x + tproj.dx * PROJ_SPEED * dt;
-
-    if (proj_nx < 0 or proj_nx + PROJ_SIZE > WINDOW_WIDTH or tproj.overlaps(tbar, proj_nx, null)) {
-        tproj.dx *= -1;
+    const proj_nx: f32 = proj.react.x + proj.dx * PROJ_SPEED * dt;
+    if (proj_nx < 0 or proj_nx + PROJ_SIZE > WINDOW_WIDTH or proj.overlaps(bar, proj_nx, null)) {
+        proj.dx *= -1;
         return;
     }
     for (targets_pool[0..]) |*it| {
-        if (!it.dead and tproj.overlaps(it.*, proj_nx, null)) {
+        if (!it.dead and proj.overlaps(it.*, proj_nx, null)) {
+            rl.playSound(collid_sound);
             it.dead = true;
-            tproj.dx *= -1;
+            proj.dx *= -1;
             return;
         }
     }
-    tproj.react.x = proj_nx;
+    proj.react.x = proj_nx;
 }
 
 fn vert_collision(dt: f32) void {
-    const proj_ny: f32 = tproj.react.y + tproj.dy * PROJ_SPEED * dt;
+    const proj_ny: f32 = proj.react.y + proj.dy * PROJ_SPEED * dt;
     if (proj_ny < 0 or proj_ny + PROJ_SIZE > WINDOW_HEIGHT) {
-        tproj.dy *= -1;
+        proj.dy *= -1;
         return;
     }
-    if (tproj.overlaps(tbar, null, proj_ny)) {
-        if (tbar.dx != 0) tproj.dx = tbar.dx;
-        tproj.dy *= -1;
+    if (proj.overlaps(bar, null, proj_ny)) {
+        if (bar.dx != 0) proj.dx = bar.dx;
+        proj.dy *= -1;
         return;
     }
     for (targets_pool[0..]) |*it| {
-        if (!it.dead and tproj.overlaps(it.*, null, proj_ny)) {
+        if (!it.dead and proj.overlaps(it.*, null, proj_ny)) {
+            rl.playSound(collid_sound);
             it.dead = true;
-            tproj.dy *= -1;
+            proj.dy *= -1;
             return;
         }
     }
-    tproj.react.y = proj_ny;
+    proj.react.y = proj_ny;
 }
 
 fn bar_collision(dt: f32) void {
     const bar_nx: f32 = math.clamp(
-        tbar.react.x + tbar.dx * BAR_SPEED * dt,
+        bar.react.x + bar.dx * BAR_SPEED * dt,
         0,
         WINDOW_WIDTH - BAR_LEN,
     );
-    if (tproj.overlaps(tbar, null, null)) {
+    if (proj.overlaps(bar, null, null)) {
         return;
     }
-    tbar.react.x = bar_nx;
+    bar.react.x = bar_nx;
 }
 
 fn update(dt: f32) void {
     if (!pause and started) {
-        if (tproj.overlaps(tbar, null, null)) {
-            tproj.react.y = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE - 1.0;
+        if (proj.overlaps(bar, null, null)) {
+            proj.react.y = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE - 1.0;
             return;
         }
         bar_collision(dt);
@@ -162,8 +156,8 @@ fn update(dt: f32) void {
 }
 
 fn render() void {
-    drawEntity(&tbar);
-    drawEntity(&tproj);
+    drawEntity(&bar);
+    drawEntity(&proj);
     for (targets_pool) |target| {
         if (!target.dead) {
             drawEntity(&target);
@@ -180,24 +174,27 @@ fn drawEntity(en: *const Entity) void {
 }
 pub fn main() !void {
     rl.initWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "[Z]brake");
+    // rl.toggleBorderlessWindowed();
+    rl.initAudioDevice();
+    collid_sound = try rl.loadSound("assets/sounds/collide.wav");
     defer rl.closeWindow(); // Close window and OpenGL context
     rl.setTargetFPS(FPS); // Set our game to run at 60 frames-per-second
     //
     while (!rl.windowShouldClose()) { // Detect window close button or ESC key
         const dt: f32 = rl.getFrameTime();
-        tbar.dx = 0;
+        bar.dx = 0;
         if (rl.isKeyDown(.a) or rl.isKeyDown(.left)) {
-            tbar.dx -= 1;
+            bar.dx -= 1;
             if (!started) {
                 started = true;
-                tproj.dx = 1;
+                proj.dx = 1;
             }
         }
         if (rl.isKeyDown(.d) or rl.isKeyDown(.right)) {
-            tbar.dx += 1;
+            bar.dx += 1;
             if (!started) {
                 started = true;
-                tproj.dx = -1;
+                proj.dx = -1;
             }
         }
         if (rl.isKeyPressed(.f4)) show_fps = !show_fps;

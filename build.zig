@@ -10,8 +10,6 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    exe.linkSystemLibrary("SDL2");
-    exe.linkLibC();
     const raylib_dep = b.dependency("raylib-zig", .{
         .target = target,
         .optimize = optimize,

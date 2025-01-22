@@ -1,11 +1,7 @@
 const std = @import("std");
 const math = std.math;
-const c = @cImport({
-    @cInclude("SDL2/SDL.h");
-});
 const rl = @import("raylib");
 
-const overlaps = c.SDL_HasIntersection;
 const FPS = 60;
 const DELTA_TIME_SEC: f32 = 1.0 / @as(f32, @floatFromInt(FPS));
 const WINDOW_WIDTH = 800;
@@ -42,6 +38,7 @@ const Entity = struct {
     dx: f32 = 0,
     dy: f32 = 0,
     dead: bool = false,
+    color: u32,
     react: rl.Rectangle,
     const Self = @This();
 
@@ -62,25 +59,31 @@ const Entity = struct {
     }
 };
 
-fn init_targets() [TARGET_ROWS * TARGET_COLS]Target {
-    var targets: [TARGET_ROWS * TARGET_COLS]Target = undefined;
+fn init_targets() [TARGET_ROWS * TARGET_COLS]Entity {
+    var targets: [TARGET_ROWS * TARGET_COLS]Entity = undefined;
     var row: usize = 0;
     while (row < TARGET_ROWS) : (row += 1) {
         var col: usize = 0;
         while (col < TARGET_COLS) : (col += 1) {
-            targets[row * TARGET_COLS + col] = Target{
+            targets[row * TARGET_COLS + col] = Entity{ .color = TARGET_COLOR, .react = .{
                 .x = TARGET_GRID_X + (TARGET_WIDTH + TARGET_PADDING_X) * @as(f32, @floatFromInt(col)),
                 .y = TARGET_GRID_Y + TARGET_PADDING_Y * @as(f32, @floatFromInt(row)),
-            };
+                .width = TARGET_WIDTH,
+                .height = TARGET_HEIGHT,
+            } };
         }
     }
     return targets;
 }
 
 var targets_pool = init_targets();
-
-var tbar: Entity = .{ .react = .{ .x = WINDOW_WIDTH / 2 - BAR_LEN / 2, .y = BAR_Y - BAR_THICCNESS / 2, .width = BAR_LEN, .height = BAR_THICCNESS } };
-var tproj: Entity = .{ .dx = 1, .dy = 1, .react = .{
+var tbar: Entity = .{ .color = BAR_COLOR, .react = .{
+    .x = WINDOW_WIDTH / 2 - BAR_LEN / 2,
+    .y = BAR_Y - BAR_THICCNESS / 2,
+    .width = BAR_LEN,
+    .height = BAR_THICCNESS,
+} };
+var tproj: Entity = .{ .dx = 1, .dy = 1, .color = PROJ_COLOR, .react = .{
     .x = WINDOW_WIDTH / 2 - PROJ_SIZE / 2,
     .y = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE,
     .width = PROJ_SIZE,
@@ -96,35 +99,6 @@ var show_fps = false;
 // TODO: victory
 // TODO: Sound on collision's
 
-fn make_rect(x: f32, y: f32, w: f32, h: f32) c.SDL_Rect {
-    return c.SDL_Rect{
-        .x = @as(i32, @intFromFloat(x)),
-        .y = @as(i32, @intFromFloat(y)),
-        .w = @as(i32, @intFromFloat(w)),
-        .h = @as(i32, @intFromFloat(h)),
-    };
-}
-
-fn set_color(renderer: *c.SDL_Renderer, color: u32) void {
-    const r: u8 = @truncate((color >> (0 * 8)) & 0xFF);
-    const g: u8 = @truncate((color >> (1 * 8)) & 0xFF);
-    const b: u8 = @truncate((color >> (2 * 8)) & 0xFF);
-    const a: u8 = @truncate((color >> (3 * 8)) & 0xFF);
-    _ = c.SDL_SetRenderDrawColor(renderer, r, g, b, a);
-}
-
-fn target_rect(target: Target) c.SDL_Rect {
-    return make_rect(target.x, target.y, TARGET_WIDTH, TARGET_HEIGHT);
-}
-
-fn proj_rect(x: f32, y: f32) c.SDL_Rect {
-    return make_rect(x, y, PROJ_SIZE, PROJ_SIZE);
-}
-
-fn bar_rect(x: f32) c.SDL_Rect {
-    return make_rect(x, BAR_Y - BAR_THICCNESS / 2, BAR_LEN, BAR_THICCNESS);
-}
-
 fn horz_collision(dt: f32) void {
     const proj_nx: f32 = tproj.react.x + tproj.dx * PROJ_SPEED * dt;
 
@@ -133,7 +107,7 @@ fn horz_collision(dt: f32) void {
         return;
     }
     for (targets_pool[0..]) |*it| {
-        if (!it.dead and overlaps(&proj_rect(proj_nx, tproj.react.y), &target_rect(it.*)) != 0) {
+        if (!it.dead and tproj.overlaps(it.*, proj_nx, null)) {
             it.dead = true;
             tproj.dx *= -1;
             return;
@@ -154,7 +128,7 @@ fn vert_collision(dt: f32) void {
         return;
     }
     for (targets_pool[0..]) |*it| {
-        if (!it.dead and overlaps(&proj_rect(tproj.react.x, proj_ny), &target_rect(it.*)) != 0) {
+        if (!it.dead and tproj.overlaps(it.*, null, proj_ny)) {
             it.dead = true;
             tproj.dy *= -1;
             return;
@@ -188,144 +162,60 @@ fn update(dt: f32) void {
 }
 
 fn render() void {
-    drawBar(tbar.react.x);
-    drawProj(tproj.react.x, tproj.react.y);
+    drawEntity(&tbar);
+    drawEntity(&tproj);
     for (targets_pool) |target| {
         if (!target.dead) {
-            drawTarget(&target);
+            drawEntity(&target);
         }
     }
 }
 
-// fn sides(object: React) React {
-//     return .{ .x = object.x, .y = object.y, .w = object.x + object.w, .h = object.y + object.h };
-// }
-// fn overlapsss(a: React, b: React) bool {
-//     const ra = sides(a); // A Walls
-//     const rb = sides(b); // B Walls
-//     return !(ra.w < rb.x or rb.w < ra.x or ra.h < rb.y or rb.h < ra.y);
-// }
-fn drawBar(x: f32) void {
-    rl.drawRectangle(@as(i32, @intFromFloat(x)), BAR_Y - BAR_THICCNESS / 2, BAR_LEN, BAR_THICCNESS, rl.getColor(BAR_COLOR));
-}
-fn drawProj(x: f32, y: f32) void {
-    const nx = @as(i32, @intFromFloat(x));
-    const ny = @as(i32, @intFromFloat(y));
-    rl.drawRectangle(nx, ny, PROJ_SIZE, PROJ_SIZE, rl.getColor(PROJ_COLOR));
-}
-fn drawTarget(target: *const Target) void {
-    const nx = @as(i32, @intFromFloat(target.x));
-    const ny = @as(i32, @intFromFloat(target.y));
-    rl.drawRectangle(nx, ny, TARGET_WIDTH, TARGET_HEIGHT, rl.getColor(TARGET_COLOR));
+fn drawEntity(en: *const Entity) void {
+    const nx = @as(i32, @intFromFloat(en.react.x));
+    const ny = @as(i32, @intFromFloat(en.react.y));
+    const nw = @as(i32, @intFromFloat(en.react.width));
+    const nh = @as(i32, @intFromFloat(en.react.height));
+    rl.drawRectangle(nx, ny, nw, nh, rl.getColor(en.color));
 }
 pub fn main() !void {
-    const isSdl = false;
-    if (!isSdl) {
-        rl.initWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "[Z]brake");
-        defer rl.closeWindow(); // Close window and OpenGL context
-        rl.setTargetFPS(FPS); // Set our game to run at 60 frames-per-second
-        //
-        while (!rl.windowShouldClose()) { // Detect window close button or ESC key
-            const dt: f32 = rl.getFrameTime();
-            tbar.dx = 0;
-            if (rl.isKeyDown(.a) or rl.isKeyDown(.left)) {
-                tbar.dx -= 1;
-                if (!started) {
-                    started = true;
-                    tproj.dx = 1;
-                }
+    rl.initWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "[Z]brake");
+    defer rl.closeWindow(); // Close window and OpenGL context
+    rl.setTargetFPS(FPS); // Set our game to run at 60 frames-per-second
+    //
+    while (!rl.windowShouldClose()) { // Detect window close button or ESC key
+        const dt: f32 = rl.getFrameTime();
+        tbar.dx = 0;
+        if (rl.isKeyDown(.a) or rl.isKeyDown(.left)) {
+            tbar.dx -= 1;
+            if (!started) {
+                started = true;
+                tproj.dx = 1;
             }
-            if (rl.isKeyDown(.d) or rl.isKeyDown(.right)) {
-                tbar.dx += 1;
-                if (!started) {
-                    started = true;
-                    tproj.dx = -1;
-                }
-            }
-            if (rl.isKeyPressed(.f4)) show_fps = !show_fps;
-            if (rl.isKeyPressed(.space)) pause = !pause;
-            update(dt);
-            // Draw
-            //----------------------------------------------------------------------------------
-            rl.beginDrawing();
-            defer rl.endDrawing();
-            rl.clearBackground(rl.getColor(BACKGROUND_COLOR));
-            render();
-            if (show_fps) rl.drawFPS(10, 10);
-            if (pause) rl.drawText(
-                PAUSE_TEXT,
-                WINDOW_WIDTH / 2 - (@as(f32, PAUSE_TEXT.len) * PAUSE_TEXT_FS) / 4.0,
-                WINDOW_HEIGHT / 2,
-                PAUSE_TEXT_FS,
-                rl.getColor(PROJ_COLOR),
-            );
         }
-    } else {
-
-        // ------------------ SDL ---------------------------
-        if (c.SDL_Init(c.SDL_INIT_VIDEO) < 0) {
-            c.SDL_Log("Unable to initialize SDL: %s", c.SDL_GetError());
-            return error.SDLInitializationFailed;
+        if (rl.isKeyDown(.d) or rl.isKeyDown(.right)) {
+            tbar.dx += 1;
+            if (!started) {
+                started = true;
+                tproj.dx = -1;
+            }
         }
-        defer c.SDL_Quit();
-
-        const window = c.SDL_CreateWindow("Zigout", 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, 0) orelse {
-            c.SDL_Log("Unable to initialize SDL: %s", c.SDL_GetError());
-            return error.SDLInitializationFailed;
-        };
-        defer c.SDL_DestroyWindow(window);
-
-        const renderer = c.SDL_CreateRenderer(window, -1, c.SDL_RENDERER_ACCELERATED) orelse {
-            c.SDL_Log("Unable to initialize SDL: %s", c.SDL_GetError());
-            return error.SDLInitializationFailed;
-        };
-        defer c.SDL_DestroyRenderer(renderer);
-
-        const keyboard = c.SDL_GetKeyboardState(null);
-
-        while (!quit) {
-            var event: c.SDL_Event = undefined;
-            while (c.SDL_PollEvent(&event) != 0) {
-                switch (event.type) {
-                    c.SDL_QUIT => {
-                        quit = true;
-                    },
-                    c.SDL_KEYDOWN => switch (event.key.keysym.sym) {
-                        ' ' => {
-                            pause = !pause;
-                        },
-                        else => {},
-                    },
-                    else => {},
-                }
-            }
-
-            tbar.dx = 0;
-            if (keyboard[c.SDL_SCANCODE_A] != 0) {
-                tbar.dx += -1;
-                if (!started) {
-                    started = true;
-                    tproj.dx = -1;
-                }
-            }
-            if (keyboard[c.SDL_SCANCODE_D] != 0) {
-                tbar.dx += 1;
-                if (!started) {
-                    started = true;
-                    tproj.dx = 1;
-                }
-            }
-
-            update(DELTA_TIME_SEC);
-
-            set_color(renderer, BACKGROUND_COLOR);
-            _ = c.SDL_RenderClear(renderer);
-
-            render(renderer);
-
-            c.SDL_RenderPresent(renderer);
-
-            c.SDL_Delay(1000 / FPS);
-        }
+        if (rl.isKeyPressed(.f4)) show_fps = !show_fps;
+        if (rl.isKeyPressed(.space)) pause = !pause;
+        update(dt);
+        // Draw
+        //----------------------------------------------------------------------------------
+        rl.beginDrawing();
+        defer rl.endDrawing();
+        rl.clearBackground(rl.getColor(BACKGROUND_COLOR));
+        render();
+        if (show_fps) rl.drawFPS(10, 10);
+        if (pause) rl.drawText(
+            PAUSE_TEXT,
+            WINDOW_WIDTH / 2 - (@as(f32, PAUSE_TEXT.len) * PAUSE_TEXT_FS) / 4.0,
+            WINDOW_HEIGHT / 2,
+            PAUSE_TEXT_FS,
+            rl.getColor(PROJ_COLOR),
+        );
     }
 }

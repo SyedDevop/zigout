@@ -38,11 +38,28 @@ const Target = struct {
     dead: bool = false,
 };
 
-const Rect = struct {
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
+const Entity = struct {
+    dx: f32 = 0,
+    dy: f32 = 0,
+    dead: bool = false,
+    react: rl.Rectangle,
+    const Self = @This();
+
+    /// Checks if this entity's rectangle overlaps with another entity's rectangle.
+    /// Optionally, `newX` and `newY` can be used to temporarily set the `x` and `y`
+    /// positions of self entity for the collision check.
+    ///
+    /// - `self`: The current entity.
+    /// - `otherEntity`: The entity to check against.
+    /// - `newX`: (Optional) Temporary `x` position for self entity.
+    /// - `newY`: (Optional) Temporary `y` position for self entity.
+    /// - Returns `true` if the rectangles overlap, otherwise `false`.
+    pub fn overlaps(self: Self, otherEntity: Entity, newX: ?f32, newY: ?f32) bool {
+        var updatedRect = self.react;
+        if (newY) |y| updatedRect.y = y;
+        if (newX) |x| updatedRect.x = x;
+        return rl.checkCollisionRecs(updatedRect, otherEntity.react);
+    }
 };
 
 fn init_targets() [TARGET_ROWS * TARGET_COLS]Target {
@@ -62,13 +79,13 @@ fn init_targets() [TARGET_ROWS * TARGET_COLS]Target {
 
 var targets_pool = init_targets();
 
-var tbar: Rect = .{ .x = WINDOW_WIDTH / 2 - BAR_LEN / 2, .y = BAR_Y - BAR_THICCNESS / 2, .w = BAR_LEN, .h = BAR_THICCNESS };
-
-var bar_dx: f32 = 0;
-var proj_x: f32 = WINDOW_WIDTH / 2 - PROJ_SIZE / 2;
-var proj_y: f32 = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE;
-var proj_dx: f32 = 1;
-var proj_dy: f32 = 1;
+var tbar: Entity = .{ .react = .{ .x = WINDOW_WIDTH / 2 - BAR_LEN / 2, .y = BAR_Y - BAR_THICCNESS / 2, .width = BAR_LEN, .height = BAR_THICCNESS } };
+var tproj: Entity = .{ .dx = 1, .dy = 1, .react = .{
+    .x = WINDOW_WIDTH / 2 - PROJ_SIZE / 2,
+    .y = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE,
+    .width = PROJ_SIZE,
+    .height = PROJ_SIZE,
+} };
 var quit = false;
 var pause = false;
 var started = false;
@@ -109,56 +126,59 @@ fn bar_rect(x: f32) c.SDL_Rect {
 }
 
 fn horz_collision(dt: f32) void {
-    const proj_nx: f32 = proj_x + proj_dx * PROJ_SPEED * dt;
-    if (proj_nx < 0 or proj_nx + PROJ_SIZE > WINDOW_WIDTH or overlaps(&proj_rect(proj_nx, proj_y), &bar_rect(bar_x)) != 0) {
-        proj_dx *= -1;
+    const proj_nx: f32 = tproj.react.x + tproj.dx * PROJ_SPEED * dt;
+
+    if (proj_nx < 0 or proj_nx + PROJ_SIZE > WINDOW_WIDTH or tproj.overlaps(tbar, proj_nx, null)) {
+        tproj.dx *= -1;
         return;
     }
     for (targets_pool[0..]) |*it| {
-        if (!it.dead and overlaps(&proj_rect(proj_nx, proj_y), &target_rect(it.*)) != 0) {
+        if (!it.dead and overlaps(&proj_rect(proj_nx, tproj.react.y), &target_rect(it.*)) != 0) {
             it.dead = true;
-            proj_dx *= -1;
+            tproj.dx *= -1;
             return;
         }
     }
-    proj_x = proj_nx;
+    tproj.react.x = proj_nx;
 }
 
 fn vert_collision(dt: f32) void {
-    const proj_ny: f32 = proj_y + proj_dy * PROJ_SPEED * dt;
+    const proj_ny: f32 = tproj.react.y + tproj.dy * PROJ_SPEED * dt;
     if (proj_ny < 0 or proj_ny + PROJ_SIZE > WINDOW_HEIGHT) {
-        proj_dy *= -1;
+        tproj.dy *= -1;
         return;
     }
-    if (overlaps(&proj_rect(proj_x, proj_ny), &bar_rect(bar_x)) != 0) {
-        if (bar_dx != 0) proj_dx = bar_dx;
-        proj_dy *= -1;
+    if (tproj.overlaps(tbar, null, proj_ny)) {
+        if (tbar.dx != 0) tproj.dx = tbar.dx;
+        tproj.dy *= -1;
         return;
     }
     for (targets_pool[0..]) |*it| {
-        if (!it.dead and overlaps(&proj_rect(proj_x, proj_ny), &target_rect(it.*)) != 0) {
+        if (!it.dead and overlaps(&proj_rect(tproj.react.x, proj_ny), &target_rect(it.*)) != 0) {
             it.dead = true;
-            proj_dy *= -1;
+            tproj.dy *= -1;
             return;
         }
     }
-    proj_y = proj_ny;
+    tproj.react.y = proj_ny;
 }
 
 fn bar_collision(dt: f32) void {
     const bar_nx: f32 = math.clamp(
-        bar_x + bar_dx * BAR_SPEED * dt,
+        tbar.react.x + tbar.dx * BAR_SPEED * dt,
         0,
         WINDOW_WIDTH - BAR_LEN,
     );
-    if (overlaps(&proj_rect(proj_x, proj_y), &bar_rect(bar_nx)) != 0) return;
-    bar_x = bar_nx;
+    if (tproj.overlaps(tbar, null, null)) {
+        return;
+    }
+    tbar.react.x = bar_nx;
 }
 
 fn update(dt: f32) void {
     if (!pause and started) {
-        if (overlaps(&proj_rect(proj_x, proj_y), &bar_rect(bar_x)) != 0) {
-            proj_y = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE - 1.0;
+        if (tproj.overlaps(tbar, null, null)) {
+            tproj.react.y = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE - 1.0;
             return;
         }
         bar_collision(dt);
@@ -168,8 +188,8 @@ fn update(dt: f32) void {
 }
 
 fn render() void {
-    drawBar(bar_x);
-    drawProj(proj_x, proj_y);
+    drawBar(tbar.react.x);
+    drawProj(tproj.react.x, tproj.react.y);
     for (targets_pool) |target| {
         if (!target.dead) {
             drawTarget(&target);
@@ -177,21 +197,14 @@ fn render() void {
     }
 }
 
-fn bar() Rect {
-    return .{ .x = bar_x, .y = BAR_Y - BAR_THICCNESS / 2, .w = BAR_LEN, .h = BAR_THICCNESS };
-}
-fn proj() Rect {
-    return .{ .x = proj_x, .y = proj_y, .w = PROJ_SIZE, .h = PROJ_SIZE };
-}
-
-fn sides(object: Rect) Rect {
-    return .{ .x = object.x, .y = object.y, .w = object.x + object.w, .h = object.y + object.h };
-}
-fn overlapsss(a: Rect, b: Rect) bool {
-    const ra = sides(a); // A Walls
-    const rb = sides(b); // B Walls
-    return !(ra.w < rb.x or rb.w < ra.x or ra.h < rb.y or rb.h < ra.y);
-}
+// fn sides(object: React) React {
+//     return .{ .x = object.x, .y = object.y, .w = object.x + object.w, .h = object.y + object.h };
+// }
+// fn overlapsss(a: React, b: React) bool {
+//     const ra = sides(a); // A Walls
+//     const rb = sides(b); // B Walls
+//     return !(ra.w < rb.x or rb.w < ra.x or ra.h < rb.y or rb.h < ra.y);
+// }
 fn drawBar(x: f32) void {
     rl.drawRectangle(@as(i32, @intFromFloat(x)), BAR_Y - BAR_THICCNESS / 2, BAR_LEN, BAR_THICCNESS, rl.getColor(BAR_COLOR));
 }
@@ -214,19 +227,19 @@ pub fn main() !void {
         //
         while (!rl.windowShouldClose()) { // Detect window close button or ESC key
             const dt: f32 = rl.getFrameTime();
-            bar_dx = 0;
+            tbar.dx = 0;
             if (rl.isKeyDown(.a) or rl.isKeyDown(.left)) {
-                bar_dx -= 1;
+                tbar.dx -= 1;
                 if (!started) {
                     started = true;
-                    proj_dx = 1;
+                    tproj.dx = 1;
                 }
             }
             if (rl.isKeyDown(.d) or rl.isKeyDown(.right)) {
-                bar_dx += 1;
+                tbar.dx += 1;
                 if (!started) {
                     started = true;
-                    proj_dx = -1;
+                    tproj.dx = -1;
                 }
             }
             if (rl.isKeyPressed(.f4)) show_fps = !show_fps;
@@ -287,19 +300,19 @@ pub fn main() !void {
                 }
             }
 
-            bar_dx = 0;
+            tbar.dx = 0;
             if (keyboard[c.SDL_SCANCODE_A] != 0) {
-                bar_dx += -1;
+                tbar.dx += -1;
                 if (!started) {
                     started = true;
-                    proj_dx = -1;
+                    tproj.dx = -1;
                 }
             }
             if (keyboard[c.SDL_SCANCODE_D] != 0) {
-                bar_dx += 1;
+                tbar.dx += 1;
                 if (!started) {
                     started = true;
-                    proj_dx = 1;
+                    tproj.dx = 1;
                 }
             }
 

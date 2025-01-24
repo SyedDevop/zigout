@@ -68,30 +68,50 @@ fn init_targets() [TARGET_ROWS * TARGET_COLS]Entity {
     }
     return targets;
 }
-
+fn init_bar() Entity {
+    return .{ .color = BAR_COLOR, .react = .{
+        .x = WINDOW_WIDTH / 2 - BAR_LEN / 2,
+        .y = BAR_Y - BAR_THICCNESS / 2,
+        .width = BAR_LEN,
+        .height = BAR_THICCNESS,
+    } };
+}
+fn init_proj() Entity {
+    return .{ .dx = 1, .dy = 1, .color = PROJ_COLOR, .react = .{
+        .x = WINDOW_WIDTH / 2 - PROJ_SIZE / 2,
+        .y = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE,
+        .width = PROJ_SIZE,
+        .height = PROJ_SIZE,
+    } };
+}
+fn reset_target() void {
+    for (targets_pool[0..]) |*it| {
+        it.dead = false;
+    }
+}
 var targets_pool = init_targets();
-var bar: Entity = .{ .color = BAR_COLOR, .react = .{
-    .x = WINDOW_WIDTH / 2 - BAR_LEN / 2,
-    .y = BAR_Y - BAR_THICCNESS / 2,
-    .width = BAR_LEN,
-    .height = BAR_THICCNESS,
-} };
-var proj: Entity = .{ .dx = 1, .dy = 1, .color = PROJ_COLOR, .react = .{
-    .x = WINDOW_WIDTH / 2 - PROJ_SIZE / 2,
-    .y = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE,
-    .width = PROJ_SIZE,
-    .height = PROJ_SIZE,
-} };
+var bar: Entity = init_bar();
+var proj: Entity = init_proj();
 var collid_sound: rl.Sound = undefined;
 var score: u32 = 0;
-var quit = false;
+var live: u8 = 4;
 var pause = false;
 var started = false;
 var show_fps = false;
 
-// TODO: death
-// TODO: score
-// TODO: victory
+// TODO: game won  sound and message.
+// TODO: game lose sound and message.
+// TODO: new color pallet for target.
+
+fn reset() void {
+    pause = false;
+    started = false;
+    score = 0;
+    live = 4;
+    bar = init_bar();
+    proj = init_proj();
+    reset_target();
+}
 
 fn horz_collision(dt: f32) void {
     const proj_nx: f32 = proj.react.x + proj.dx * PROJ_SPEED * dt;
@@ -113,8 +133,15 @@ fn horz_collision(dt: f32) void {
 
 fn vert_collision(dt: f32) void {
     const proj_ny: f32 = proj.react.y + proj.dy * PROJ_SPEED * dt;
-    if (proj_ny < 0 or proj_ny + PROJ_SIZE > WINDOW_HEIGHT) {
+    if (proj_ny < 0) {
         proj.dy *= -1;
+        return;
+    }
+    if (proj_ny + PROJ_SIZE > WINDOW_HEIGHT) {
+        live -|= 1;
+        proj.react.y = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE;
+        proj.react.x = bar.react.x + BAR_LEN / 2 - PROJ_SIZE / 2;
+        started = false;
         return;
     }
     if (proj.overlaps(bar, null, proj_ny)) {
@@ -160,6 +187,7 @@ fn update(dt: f32) void {
 
 fn render() void {
     rl.drawText(rl.textFormat("Score: %d", .{score}), WINDOW_WIDTH - 150, 10, 20, rl.getColor(PROJ_COLOR));
+    rl.drawText(rl.textFormat("Lives: %d", .{live}), WINDOW_WIDTH - 150, 50, 20, rl.getColor(PROJ_COLOR));
     drawEntity(&bar);
     drawEntity(&proj);
     for (targets_pool) |target| {
@@ -203,7 +231,8 @@ pub fn main() !void {
         }
         if (rl.isKeyPressed(.f4)) show_fps = !show_fps;
         if (rl.isKeyPressed(.space)) pause = !pause;
-        update(dt);
+        if (((score >= TARGET_ROWS * TARGET_COLS) or live <= 0) and rl.isKeyPressed(.r)) reset();
+        if (!(score >= TARGET_ROWS * TARGET_COLS)) update(dt);
         // Draw
         //----------------------------------------------------------------------------------
         rl.beginDrawing();
@@ -218,6 +247,23 @@ pub fn main() !void {
             PAUSE_TEXT_FS,
             rl.getColor(PROJ_COLOR),
         );
+        if (live <= 0) {
+            started = false;
+            rl.drawText(
+                "Game over You Lose",
+                WINDOW_WIDTH / 2 - (@as(f32, GAME_WONE_TEXT.len) * PAUSE_TEXT_FS) / 4.0,
+                WINDOW_HEIGHT / 2,
+                PAUSE_TEXT_FS,
+                rl.getColor(PROJ_COLOR),
+            );
+            rl.drawText(
+                "Press r to restart",
+                WINDOW_WIDTH / 2 - (@as(f32, GAME_WONE_TEXT.len) * PAUSE_TEXT_FS) / 4.0,
+                (WINDOW_HEIGHT / 2) + 62,
+                40,
+                rl.getColor(PROJ_COLOR),
+            );
+        }
         if (score >= TARGET_ROWS * TARGET_COLS) {
             started = false;
             rl.drawText(
@@ -225,6 +271,13 @@ pub fn main() !void {
                 WINDOW_WIDTH / 2 - (@as(f32, GAME_WONE_TEXT.len) * PAUSE_TEXT_FS) / 4.0,
                 WINDOW_HEIGHT / 2,
                 PAUSE_TEXT_FS,
+                rl.getColor(PROJ_COLOR),
+            );
+            rl.drawText(
+                "Press r to restart",
+                WINDOW_WIDTH / 2 - (@as(f32, GAME_WONE_TEXT.len) * PAUSE_TEXT_FS) / 4.0,
+                (WINDOW_HEIGHT / 2) + 62,
+                40,
                 rl.getColor(PROJ_COLOR),
             );
         }

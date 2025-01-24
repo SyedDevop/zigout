@@ -1,2 +1,3 @@
 Used Sounds:
     - collide.wav - https://opengameart.org/content/gui-sound-effects-4
+    - lose.wav    - https://opengameart.org/content/gui-sound-effects-4

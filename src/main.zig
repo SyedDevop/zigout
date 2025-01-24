@@ -7,8 +7,6 @@ const DELTA_TIME_SEC: f32 = 1.0 / @as(f32, @floatFromInt(FPS));
 const WINDOW_WIDTH = 1024;
 const WINDOW_HEIGHT = 800;
 const PAUSE_TEXT_FS: u8 = 64;
-const PAUSE_TEXT = "Game Is Paused";
-const GAME_WONE_TEXT = "Game Wone";
 const BACKGROUND_COLOR = 0x181818FF;
 const PROJ_SIZE: f32 = 25 * 0.80;
 const PROJ_SPEED: f32 = 350;
@@ -28,6 +26,49 @@ const TARGET_GRID_WIDTH = (TARGET_COLS * TARGET_WIDTH + (TARGET_COLS - 1) * TARG
 const TARGET_GRID_X = WINDOW_WIDTH / 2 - TARGET_GRID_WIDTH / 2;
 const TARGET_GRID_Y = 50;
 const TARGET_COLOR = 0x30FF30FF;
+
+// Constant text to display
+const PAUSE_T = "Game Is Paused";
+const RESTART_T = "Press r to restart";
+const OYL_T = "Game Over You Lose";
+const WON_T = "Game Won";
+
+const Text = struct {
+    text: [:0]const u8,
+    x: f32 = 0,
+    y: f32 = 0,
+    size: rl.Vector2,
+    fontSize: i32 = 0,
+    font: rl.Font,
+    color: u32,
+    const Self = @This();
+
+    pub fn init(text: [:0]const u8, fontSize: i32, color: u32, font: rl.Font) Self {
+        const size = rl.measureTextEx(font, text, @as(f32, @floatFromInt(fontSize)), 1.0);
+        return .{ .text = text, .fontSize = fontSize, .color = color, .font = font, .size = size };
+    }
+    pub fn drawAtCenter(self: Self) void {
+        rl.drawText(
+            self.text,
+            @as(i32, (@intFromFloat((WINDOW_WIDTH / 2) - (self.size.x / 2)))),
+            WINDOW_HEIGHT / 2,
+            self.fontSize,
+            rl.getColor(self.color),
+        );
+    }
+
+    pub fn drawAtCenterWight(self: Self, x: ?i32, y: ?i32) void {
+        const nx = if (x) |v| v else 0;
+        const ny = if (y) |v| v else 0;
+        rl.drawText(
+            self.text,
+            @as(i32, (@intFromFloat((WINDOW_WIDTH / 2) - (self.size.x / 2)))) + nx,
+            (WINDOW_HEIGHT / 2) + ny,
+            self.fontSize,
+            rl.getColor(self.color),
+        );
+    }
+};
 
 const Entity = struct {
     dx: f32 = 0,
@@ -93,6 +134,7 @@ var targets_pool = init_targets();
 var bar: Entity = init_bar();
 var proj: Entity = init_proj();
 var collid_sound: rl.Sound = undefined;
+var death_sound: rl.Sound = undefined;
 var score: u32 = 0;
 var live: u8 = 4;
 var pause = false;
@@ -138,6 +180,7 @@ fn vert_collision(dt: f32) void {
         return;
     }
     if (proj_ny + PROJ_SIZE > WINDOW_HEIGHT) {
+        rl.playSound(death_sound);
         live -|= 1;
         proj.react.y = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE;
         proj.react.x = bar.react.x + BAR_LEN / 2 - PROJ_SIZE / 2;
@@ -209,9 +252,15 @@ pub fn main() !void {
     // rl.toggleBorderlessWindowed();
     rl.initAudioDevice();
     collid_sound = try rl.loadSound("assets/sounds/collide.wav");
+    death_sound = try rl.loadSound("assets/sounds/lose.wav");
     defer rl.closeWindow(); // Close window and OpenGL context
     rl.setTargetFPS(FPS); // Set our game to run at 60 frames-per-second
-    //
+    const dfont = try rl.getFontDefault();
+    const pauseT = Text.init(PAUSE_T, 64, 0xFFFFFFFF, dfont);
+    const restartT = Text.init(RESTART_T, 40, 0xFFFFFFFF, dfont);
+    const oylT = Text.init(OYL_T, 64, 0xFFFFFFFF, dfont);
+    const wonT = Text.init(WON_T, 64, 0xFFFFFFFF, dfont);
+
     while (!rl.windowShouldClose()) { // Detect window close button or ESC key
         const dt: f32 = rl.getFrameTime();
         bar.dx = 0;
@@ -240,46 +289,16 @@ pub fn main() !void {
         rl.clearBackground(rl.getColor(BACKGROUND_COLOR));
         render();
         if (show_fps) rl.drawFPS(10, 10);
-        if (pause) rl.drawText(
-            PAUSE_TEXT,
-            WINDOW_WIDTH / 2 - (@as(f32, PAUSE_TEXT.len) * PAUSE_TEXT_FS) / 4.0,
-            WINDOW_HEIGHT / 2,
-            PAUSE_TEXT_FS,
-            rl.getColor(PROJ_COLOR),
-        );
+        if (pause) pauseT.drawAtCenter();
         if (live <= 0) {
             started = false;
-            rl.drawText(
-                "Game over You Lose",
-                WINDOW_WIDTH / 2 - (@as(f32, GAME_WONE_TEXT.len) * PAUSE_TEXT_FS) / 4.0,
-                WINDOW_HEIGHT / 2,
-                PAUSE_TEXT_FS,
-                rl.getColor(PROJ_COLOR),
-            );
-            rl.drawText(
-                "Press r to restart",
-                WINDOW_WIDTH / 2 - (@as(f32, GAME_WONE_TEXT.len) * PAUSE_TEXT_FS) / 4.0,
-                (WINDOW_HEIGHT / 2) + 62,
-                40,
-                rl.getColor(PROJ_COLOR),
-            );
+            oylT.drawAtCenter();
+            restartT.drawAtCenterWight(null, 60);
         }
         if (score >= TARGET_ROWS * TARGET_COLS) {
             started = false;
-            rl.drawText(
-                GAME_WONE_TEXT,
-                WINDOW_WIDTH / 2 - (@as(f32, GAME_WONE_TEXT.len) * PAUSE_TEXT_FS) / 4.0,
-                WINDOW_HEIGHT / 2,
-                PAUSE_TEXT_FS,
-                rl.getColor(PROJ_COLOR),
-            );
-            rl.drawText(
-                "Press r to restart",
-                WINDOW_WIDTH / 2 - (@as(f32, GAME_WONE_TEXT.len) * PAUSE_TEXT_FS) / 4.0,
-                (WINDOW_HEIGHT / 2) + 62,
-                40,
-                rl.getColor(PROJ_COLOR),
-            );
+            wonT.drawAtCenter();
+            restartT.drawAtCenterWight(null, 60);
         }
     }
 }

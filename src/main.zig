@@ -1,11 +1,12 @@
 const std = @import("std");
 const math = std.math;
 const rl = @import("raylib");
+const ru = @import("raygui");
 
 const FPS = 60;
 const DELTA_TIME_SEC: f32 = 1.0 / @as(f32, @floatFromInt(FPS));
-const WINDOW_WIDTH = 1024;
-const WINDOW_HEIGHT = 800;
+const WINDOW_WIDTH = 1600;
+const WINDOW_HEIGHT = 900;
 const PAUSE_TEXT_FS: u8 = 64;
 const BACKGROUND_COLOR = 0x181818FF;
 const PROJ_SIZE: f32 = 25 * 0.80;
@@ -20,8 +21,8 @@ const TARGET_WIDTH = BAR_LEN;
 const TARGET_HEIGHT = PROJ_SIZE;
 const TARGET_PADDING_X = 20;
 const TARGET_PADDING_Y = 50;
-const TARGET_ROWS = 3;
-const TARGET_COLS = 4;
+const TARGET_ROWS = 9;
+const TARGET_COLS = 10;
 const TARGET_GRID_WIDTH = (TARGET_COLS * TARGET_WIDTH + (TARGET_COLS - 1) * TARGET_PADDING_X);
 const TARGET_GRID_X = WINDOW_WIDTH / 2 - TARGET_GRID_WIDTH / 2;
 const TARGET_GRID_Y = 50;
@@ -69,12 +70,12 @@ const Text = struct {
         );
     }
 };
-
+const MyColor = struct { r: f32, g: f32, b: f32, a: f32 };
 const Entity = struct {
     dx: f32 = 0,
     dy: f32 = 0,
     dead: bool = false,
-    color: u32,
+    color: rl.Color,
     react: rl.Rectangle,
     const Self = @This();
 
@@ -94,12 +95,55 @@ const Entity = struct {
         return rl.checkCollisionRecs(updatedRect, otherEntity.react);
     }
 };
+fn srgb_to_linear(color: rl.Color) MyColor {
+    const gamma = 2.2;
+    return .{
+        .r = std.math.pow(f32, @as(f32, @floatFromInt(color.r)) / 255.0, gamma),
+        .g = std.math.pow(f32, @as(f32, @floatFromInt(color.g)) / 255.0, gamma),
+        .b = std.math.pow(f32, @as(f32, @floatFromInt(color.b)) / 255.0, gamma),
+        .a = @as(f32, @floatFromInt(color.a)) / 255.0,
+    };
+}
 
+fn linear_to_srgb(color: MyColor) rl.Color {
+    const inv_gamma = 1.0 / 2.2;
+    return .{
+        .r = @intFromFloat(std.math.pow(f32, color.r, inv_gamma) * 255.0),
+        .g = @intFromFloat(std.math.pow(f32, color.g, inv_gamma) * 255.0),
+        .b = @intFromFloat(std.math.pow(f32, color.b, inv_gamma) * 255.0),
+        .a = @intFromFloat(color.a * 255.0),
+    };
+}
+
+fn lerp(a: MyColor, b: MyColor, t: f32) MyColor {
+    return .{
+        .r = a.r + (b.r - a.r) * t,
+        .g = a.g + (b.g - a.g) * t,
+        .b = a.b + (b.b - a.b) * t,
+        .a = a.a + (b.a - a.a) * t,
+    };
+}
 fn init_targets() [TARGET_ROWS * TARGET_COLS]Entity {
     var targets: [TARGET_ROWS * TARGET_COLS]Entity = undefined;
+
+    const red = srgb_to_linear(.{ .r = 255, .g = 46, .b = 46, .a = 255 }); // ~1, 0.18, 0.18, 1
+    const green = srgb_to_linear(.{ .r = 46, .g = 255, .b = 46, .a = 255 }); // ~0.18, 1, 0.18, 1
+    const blue = srgb_to_linear(.{ .r = 46, .g = 46, .b = 255, .a = 255 }); // ~0.18, 0.18, 1, 1
+    const level = 0.5;
+
     for (0..TARGET_ROWS) |row| {
         for (0..TARGET_COLS) |col| {
-            targets[row * TARGET_COLS + col] = Entity{ .color = TARGET_COLOR, .react = .{
+            const t = @as(f32, @floatFromInt(row)) / TARGET_ROWS;
+            const c = if (t < level) 1.0 else 0.0;
+            const g1 = lerp(red, green, t / level);
+            const g2 = lerp(green, blue, (t - level) / (1 - level));
+            const color = linear_to_srgb(.{
+                .r = c * g1.r + (1 - c) * g2.r,
+                .g = c * g1.g + (1 - c) * g2.g,
+                .b = c * g1.b + (1 - c) * g2.b,
+                .a = 1.0,
+            });
+            targets[row * TARGET_COLS + col] = Entity{ .color = color, .react = .{
                 .x = TARGET_GRID_X + (TARGET_WIDTH + TARGET_PADDING_X) * @as(f32, @floatFromInt(col)),
                 .y = TARGET_GRID_Y + TARGET_PADDING_Y * @as(f32, @floatFromInt(row)),
                 .width = TARGET_WIDTH,
@@ -110,7 +154,7 @@ fn init_targets() [TARGET_ROWS * TARGET_COLS]Entity {
     return targets;
 }
 fn init_bar() Entity {
-    return .{ .color = BAR_COLOR, .react = .{
+    return .{ .color = .{ .r = 255, .g = 50, .b = 50, .a = 255 }, .react = .{
         .x = WINDOW_WIDTH / 2 - BAR_LEN / 2,
         .y = BAR_Y - BAR_THICCNESS / 2,
         .width = BAR_LEN,
@@ -118,7 +162,7 @@ fn init_bar() Entity {
     } };
 }
 fn init_proj() Entity {
-    return .{ .dx = 1, .dy = 1, .color = PROJ_COLOR, .react = .{
+    return .{ .dx = 1, .dy = 1, .color = .{ .r = 255, .g = 255, .b = 255, .a = 255 }, .react = .{
         .x = WINDOW_WIDTH / 2 - PROJ_SIZE / 2,
         .y = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE,
         .width = PROJ_SIZE,
@@ -245,7 +289,7 @@ fn drawEntity(en: *const Entity) void {
     const ny = @as(i32, @intFromFloat(en.react.y));
     const nw = @as(i32, @intFromFloat(en.react.width));
     const nh = @as(i32, @intFromFloat(en.react.height));
-    rl.drawRectangle(nx, ny, nw, nh, rl.getColor(en.color));
+    rl.drawRectangle(nx, ny, nw, nh, en.color);
 }
 pub fn main() !void {
     rl.initWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "[Z]brake");

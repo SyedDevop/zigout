@@ -5,7 +5,7 @@ const ru = @import("raygui");
 
 const FPS = 60;
 const DELTA_TIME_SEC: f32 = 1.0 / @as(f32, @floatFromInt(FPS));
-const WINDOW_WIDTH = 1600;
+const WINDOW_WIDTH = 1500;
 const WINDOW_HEIGHT = 900;
 const PAUSE_TEXT_FS: u8 = 64;
 const BACKGROUND_COLOR = 0x181818FF;
@@ -285,11 +285,7 @@ fn render() void {
 }
 
 fn drawEntity(en: *const Entity) void {
-    const nx = @as(i32, @intFromFloat(en.react.x));
-    const ny = @as(i32, @intFromFloat(en.react.y));
-    const nw = @as(i32, @intFromFloat(en.react.width));
-    const nh = @as(i32, @intFromFloat(en.react.height));
-    rl.drawRectangle(nx, ny, nw, nh, en.color);
+    rl.drawRectangleRec(en.react, en.color);
 }
 pub fn main() !void {
     rl.initWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "[Z]brake");
@@ -325,6 +321,7 @@ pub fn main() !void {
         if (rl.isKeyPressed(.f4)) show_fps = !show_fps;
         if (rl.isKeyPressed(.space)) pause = !pause;
         if (((score >= TARGET_ROWS * TARGET_COLS) or live <= 0) and rl.isKeyPressed(.r)) reset();
+        // FIXME: update's when you lose the game.
         if (!(score >= TARGET_ROWS * TARGET_COLS)) update(dt);
         // Draw
         //----------------------------------------------------------------------------------

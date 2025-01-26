@@ -254,9 +254,7 @@ fn bar_collision(dt: f32) void {
         0,
         WINDOW_WIDTH - BAR_LEN,
     );
-    if (proj.overlaps(bar, null, null)) {
-        return;
-    }
+    if (bar.overlaps(proj, bar_nx, null)) return;
     bar.react.x = bar_nx;
 }
 

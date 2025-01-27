@@ -1,17 +1,23 @@
 const std = @import("std");
 const math = std.math;
 const rl = @import("raylib");
-const ru = @import("raygui");
+const object = @import("object.zig");
+
+const Text = object.Text;
+const MyColor = object.MyColor;
+const Entity = object.Entity;
+const StateKind = object.StateKind;
 
 const FPS = 60;
 const DELTA_TIME_SEC: f32 = 1.0 / @as(f32, @floatFromInt(FPS));
-const WINDOW_WIDTH = 1500;
-const WINDOW_HEIGHT = 900;
+const WINDOW_WIDTH = object.WINDOW_WIDTH;
+const WINDOW_HEIGHT = object.WINDOW_HEIGHT;
 const PAUSE_TEXT_FS: u8 = 64;
 const BACKGROUND_COLOR = 0x181818FF;
 const PROJ_SIZE: f32 = 25 * 0.80;
 const PROJ_SPEED: f32 = 350;
 const PROJ_COLOR = 0xFFFFFFFF;
+const ANGLE_FACTOR: f32 = 0.45;
 const BAR_LEN: f32 = 100;
 const BAR_THICCNESS: f32 = PROJ_SIZE;
 const BAR_Y: f32 = WINDOW_HEIGHT - PROJ_SIZE - 50;
@@ -21,8 +27,8 @@ const TARGET_WIDTH = BAR_LEN;
 const TARGET_HEIGHT = PROJ_SIZE;
 const TARGET_PADDING_X = 20;
 const TARGET_PADDING_Y = 50;
-const TARGET_ROWS = 9;
-const TARGET_COLS = 10;
+const TARGET_ROWS = 3;
+const TARGET_COLS = 4;
 const TARGET_GRID_WIDTH = (TARGET_COLS * TARGET_WIDTH + (TARGET_COLS - 1) * TARGET_PADDING_X);
 const TARGET_GRID_X = WINDOW_WIDTH / 2 - TARGET_GRID_WIDTH / 2;
 const TARGET_GRID_Y = 50;
@@ -34,110 +40,20 @@ const RESTART_T = "Press r to restart";
 const OYL_T = "Game Over You Lose";
 const WON_T = "Game Won";
 
-const Text = struct {
-    text: [:0]const u8,
-    x: f32 = 0,
-    y: f32 = 0,
-    size: rl.Vector2,
-    fontSize: i32 = 0,
-    font: rl.Font,
-    color: u32,
-    const Self = @This();
-
-    pub fn init(text: [:0]const u8, fontSize: i32, color: u32, font: rl.Font) Self {
-        const size = rl.measureTextEx(font, text, @as(f32, @floatFromInt(fontSize)), 1.0);
-        return .{ .text = text, .fontSize = fontSize, .color = color, .font = font, .size = size };
-    }
-    pub fn drawAtCenter(self: Self) void {
-        rl.drawText(
-            self.text,
-            @as(i32, (@intFromFloat((WINDOW_WIDTH / 2) - (self.size.x / 2)))),
-            WINDOW_HEIGHT / 2,
-            self.fontSize,
-            rl.getColor(self.color),
-        );
-    }
-
-    pub fn drawAtCenterWight(self: Self, x: ?i32, y: ?i32) void {
-        const nx = if (x) |v| v else 0;
-        const ny = if (y) |v| v else 0;
-        rl.drawText(
-            self.text,
-            @as(i32, (@intFromFloat((WINDOW_WIDTH / 2) - (self.size.x / 2)))) + nx,
-            (WINDOW_HEIGHT / 2) + ny,
-            self.fontSize,
-            rl.getColor(self.color),
-        );
-    }
-};
-const MyColor = struct { r: f32, g: f32, b: f32, a: f32 };
-const Entity = struct {
-    dx: f32 = 0,
-    dy: f32 = 0,
-    dead: bool = false,
-    color: rl.Color,
-    react: rl.Rectangle,
-    const Self = @This();
-
-    /// Checks if this entity's rectangle overlaps with another entity's rectangle.
-    /// Optionally, `newX` and `newY` can be used to temporarily set the `x` and `y`
-    /// positions of self entity for the collision check.
-    ///
-    /// - `self`: The current entity.
-    /// - `otherEntity`: The entity to check against.
-    /// - `newX`: (Optional) Temporary `x` position for self entity.
-    /// - `newY`: (Optional) Temporary `y` position for self entity.
-    /// - Returns `true` if the rectangles overlap, otherwise `false`.
-    pub fn overlaps(self: Self, otherEntity: Entity, newX: ?f32, newY: ?f32) bool {
-        var updatedRect = self.react;
-        if (newY) |y| updatedRect.y = y;
-        if (newX) |x| updatedRect.x = x;
-        return rl.checkCollisionRecs(updatedRect, otherEntity.react);
-    }
-};
-fn srgb_to_linear(color: rl.Color) MyColor {
-    const gamma = 2.2;
-    return .{
-        .r = std.math.pow(f32, @as(f32, @floatFromInt(color.r)) / 255.0, gamma),
-        .g = std.math.pow(f32, @as(f32, @floatFromInt(color.g)) / 255.0, gamma),
-        .b = std.math.pow(f32, @as(f32, @floatFromInt(color.b)) / 255.0, gamma),
-        .a = @as(f32, @floatFromInt(color.a)) / 255.0,
-    };
-}
-
-fn linear_to_srgb(color: MyColor) rl.Color {
-    const inv_gamma = 1.0 / 2.2;
-    return .{
-        .r = @intFromFloat(std.math.pow(f32, color.r, inv_gamma) * 255.0),
-        .g = @intFromFloat(std.math.pow(f32, color.g, inv_gamma) * 255.0),
-        .b = @intFromFloat(std.math.pow(f32, color.b, inv_gamma) * 255.0),
-        .a = @intFromFloat(color.a * 255.0),
-    };
-}
-
-fn lerp(a: MyColor, b: MyColor, t: f32) MyColor {
-    return .{
-        .r = a.r + (b.r - a.r) * t,
-        .g = a.g + (b.g - a.g) * t,
-        .b = a.b + (b.b - a.b) * t,
-        .a = a.a + (b.a - a.a) * t,
-    };
-}
 fn init_targets() [TARGET_ROWS * TARGET_COLS]Entity {
     var targets: [TARGET_ROWS * TARGET_COLS]Entity = undefined;
 
-    const red = srgb_to_linear(.{ .r = 255, .g = 46, .b = 46, .a = 255 }); // ~1, 0.18, 0.18, 1
-    const green = srgb_to_linear(.{ .r = 46, .g = 255, .b = 46, .a = 255 }); // ~0.18, 1, 0.18, 1
-    const blue = srgb_to_linear(.{ .r = 46, .g = 46, .b = 255, .a = 255 }); // ~0.18, 0.18, 1, 1
+    const red = MyColor.srgb_to_linear(.{ .r = 255, .g = 46, .b = 46, .a = 255 }); // ~1, 0.18, 0.18, 1
+    const green = MyColor.srgb_to_linear(.{ .r = 46, .g = 255, .b = 46, .a = 255 }); // ~0.18, 1, 0.18, 1
+    const blue = MyColor.srgb_to_linear(.{ .r = 46, .g = 46, .b = 255, .a = 255 }); // ~0.18, 0.18, 1, 1
     const level = 0.5;
-
     for (0..TARGET_ROWS) |row| {
         for (0..TARGET_COLS) |col| {
             const t = @as(f32, @floatFromInt(row)) / TARGET_ROWS;
             const c = if (t < level) 1.0 else 0.0;
-            const g1 = lerp(red, green, t / level);
-            const g2 = lerp(green, blue, (t - level) / (1 - level));
-            const color = linear_to_srgb(.{
+            const g1 = MyColor.lerp(red, green, t / level);
+            const g2 = MyColor.lerp(green, blue, (t - level) / (1 - level));
+            const color = MyColor.linear_to_srgb(.{
                 .r = c * g1.r + (1 - c) * g2.r,
                 .g = c * g1.g + (1 - c) * g2.g,
                 .b = c * g1.b + (1 - c) * g2.b,
@@ -180,10 +96,12 @@ var proj: Entity = init_proj();
 var collid_sound: rl.Sound = undefined;
 var death_sound: rl.Sound = undefined;
 var score: u32 = 0;
-var live: u8 = 4;
+var life: u8 = 4;
+var state: StateKind = .READY;
 var pause = false;
-var started = false;
 var show_fps = false;
+var left = false;
+var right = false;
 
 // TODO: game won  sound and message.
 // TODO: game lose sound and message.
@@ -191,9 +109,11 @@ var show_fps = false;
 
 fn reset() void {
     pause = false;
-    started = false;
     score = 0;
-    live = 4;
+    state = .READY;
+    life = 4;
+    left = false;
+    right = false;
     bar = init_bar();
     proj = init_proj();
     reset_target();
@@ -225,10 +145,10 @@ fn vert_collision(dt: f32) void {
     }
     if (proj_ny + PROJ_SIZE > WINDOW_HEIGHT) {
         rl.playSound(death_sound);
-        live -|= 1;
+        life -|= 1;
         proj.react.y = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE;
         proj.react.x = bar.react.x + BAR_LEN / 2 - PROJ_SIZE / 2;
-        started = false;
+        state = .READY;
         return;
     }
     if (proj.overlaps(bar, null, proj_ny)) {
@@ -259,20 +179,32 @@ fn bar_collision(dt: f32) void {
 }
 
 fn update(dt: f32) void {
-    if (!pause and started) {
-        if (proj.overlaps(bar, null, null)) {
-            proj.react.y = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE - 1.0;
-            return;
-        }
-        bar_collision(dt);
-        horz_collision(dt);
-        vert_collision(dt);
+    if (pause) return;
+    if (life <= 0) {
+        state = .GAMEOVER;
+        return;
     }
+    if (score >= TARGET_ROWS * TARGET_COLS) {
+        state = .VICTORY;
+        return;
+    }
+    if (state == .READY) {
+        bar_collision(dt);
+        proj.setCenterX(bar.getCenterX());
+        return;
+    }
+    if (proj.overlaps(bar, null, null)) {
+        proj.react.y = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE - 1.0;
+        return;
+    }
+    bar_collision(dt);
+    horz_collision(dt);
+    vert_collision(dt);
 }
 
 fn render() void {
     rl.drawText(rl.textFormat("Score: %d", .{score}), WINDOW_WIDTH - 150, 10, 20, rl.getColor(PROJ_COLOR));
-    rl.drawText(rl.textFormat("Lives: %d", .{live}), WINDOW_WIDTH - 150, 50, 20, rl.getColor(PROJ_COLOR));
+    rl.drawText(rl.textFormat("Lives: %d", .{life}), WINDOW_WIDTH - 150, 50, 20, rl.getColor(PROJ_COLOR));
     drawEntity(&bar);
     drawEntity(&proj);
     for (targets_pool) |target| {
@@ -304,23 +236,32 @@ pub fn main() !void {
         bar.dx = 0;
         if (rl.isKeyDown(.a) or rl.isKeyDown(.left)) {
             bar.dx -= 1;
-            if (!started) {
-                started = true;
-                proj.dx = 1;
-            }
+            left = true;
         }
         if (rl.isKeyDown(.d) or rl.isKeyDown(.right)) {
             bar.dx += 1;
-            if (!started) {
-                started = true;
-                proj.dx = -1;
-            }
+            right = true;
         }
         if (rl.isKeyPressed(.f4)) show_fps = !show_fps;
-        if (rl.isKeyPressed(.space)) pause = !pause;
-        if (((score >= TARGET_ROWS * TARGET_COLS) or live <= 0) and rl.isKeyPressed(.r)) reset();
-        // FIXME: update's when you lose the game.
-        if (!(score >= TARGET_ROWS * TARGET_COLS)) update(dt);
+        if (rl.isKeyPressed(.space)) {
+            switch (state) {
+                .PLAY => pause = !pause,
+                .READY => {
+                    const driction: f16 = if (left) 1 else -1;
+                    proj.dx = driction;
+                    state = .PLAY;
+                },
+                else => {},
+            }
+        }
+        switch (state) {
+            .PLAY, .READY => update(dt),
+            .GAMEOVER, .VICTORY => if (rl.isKeyPressed(.r)) {
+                reset();
+                state = .RESTART;
+            },
+            else => {},
+        }
         // Draw
         //----------------------------------------------------------------------------------
         rl.beginDrawing();
@@ -329,15 +270,16 @@ pub fn main() !void {
         render();
         if (show_fps) rl.drawFPS(10, 10);
         if (pause) pauseT.drawAtCenter();
-        if (live <= 0) {
-            started = false;
-            oylT.drawAtCenter();
-            restartT.drawAtCenterWight(null, 60);
-        }
-        if (score >= TARGET_ROWS * TARGET_COLS) {
-            started = false;
-            wonT.drawAtCenter();
-            restartT.drawAtCenterWight(null, 60);
+        switch (state) {
+            .GAMEOVER => {
+                oylT.drawAtCenter();
+                restartT.drawAtCenterWight(null, 60);
+            },
+            .VICTORY => {
+                wonT.drawAtCenter();
+                restartT.drawAtCenterWight(null, 60);
+            },
+            else => {},
         }
     }
 }

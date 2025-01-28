@@ -8,7 +8,7 @@ const MyColor = object.MyColor;
 const Entity = object.Entity;
 const StateKind = object.StateKind;
 
-const FPS = 60;
+const FPS = 500;
 const DELTA_TIME_SEC: f32 = 1.0 / @as(f32, @floatFromInt(FPS));
 const WINDOW_WIDTH = object.WINDOW_WIDTH;
 const WINDOW_HEIGHT = object.WINDOW_HEIGHT;
@@ -218,6 +218,7 @@ fn drawEntity(en: *const Entity) void {
     rl.drawRectangleRec(en.react, en.color);
 }
 pub fn main() !void {
+    rl.setConfigFlags(.{ .window_highdpi = true });
     rl.initWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "[Z]brake");
     // rl.toggleBorderlessWindowed();
     rl.initAudioDevice();

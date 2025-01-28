@@ -260,6 +260,7 @@ pub fn main() !void {
                 reset();
                 state = .RESTART;
             },
+            .RESTART => state = .READY,
             else => {},
         }
         // Draw

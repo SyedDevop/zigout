@@ -33,7 +33,7 @@ const TARGET_GRID_WIDTH = (TARGET_COLS * TARGET_WIDTH + (TARGET_COLS - 1) * TARG
 const TARGET_GRID_X = WINDOW_WIDTH / 2 - TARGET_GRID_WIDTH / 2;
 const TARGET_GRID_Y = 50;
 const TARGET_COLOR = 0x30FF30FF;
-
+const LIFES: u8 = 4;
 // Constant text to display
 const PAUSE_T = "Game Is Paused";
 const RESTART_T = "Press r to restart";
@@ -77,13 +77,21 @@ fn init_bar() Entity {
         .height = BAR_THICCNESS,
     } };
 }
-fn init_proj() Entity {
-    return .{ .dx = 1, .dy = 1, .color = .{ .r = 255, .g = 255, .b = 255, .a = 255 }, .react = .{
-        .x = WINDOW_WIDTH / 2 - PROJ_SIZE / 2,
-        .y = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE,
-        .width = PROJ_SIZE,
-        .height = PROJ_SIZE,
-    } };
+fn init_proj() [LIFES]Entity {
+    var lifes: [LIFES]Entity = undefined;
+    const life_size = PROJ_SIZE;
+    for (0..LIFES) |i| {
+        lifes[i] = .{ .dx = 1, .dy = 1, .color = .{ .r = 255, .g = 255, .b = 255, .a = 255 }, .react = .{
+            .x = 10 + (life_size + 10) * i,
+            .y = 40,
+            .width = life_size,
+            .height = life_size,
+        } };
+    }
+    return lifes;
+}
+fn get_life() Entity {
+    return life_proj[life];
 }
 fn reset_target() void {
     for (targets_pool[0..]) |*it| {
@@ -91,13 +99,14 @@ fn reset_target() void {
     }
 }
 var targets_pool = init_targets();
+var life: u8 = LIFES - 1;
 var bar: Entity = init_bar();
-var proj: Entity = init_proj();
+var life_proj: [LIFES]Entity = init_proj();
+var proj: Entity = undefined;
 var collid_sound: rl.Sound = undefined;
 var death_sound: rl.Sound = undefined;
 var score: u32 = 0;
-var life: u8 = 4;
-var state: StateKind = .READY;
+var state: StateKind = .START;
 var pause = false;
 var show_fps = false;
 var left = false;
@@ -115,7 +124,6 @@ fn reset() void {
     left = false;
     right = false;
     bar = init_bar();
-    proj = init_proj();
     reset_target();
 }
 
@@ -148,7 +156,7 @@ fn vert_collision(dt: f32) void {
         life -|= 1;
         proj.react.y = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE;
         proj.react.x = bar.react.x + BAR_LEN / 2 - PROJ_SIZE / 2;
-        state = .READY;
+        state = .START;
         return;
     }
     if (proj.overlaps(bar, null, proj_ny)) {
@@ -177,7 +185,26 @@ fn bar_collision(dt: f32) void {
     if (bar.overlaps(proj, bar_nx, null)) return;
     bar.react.x = bar_nx;
 }
-
+fn life_collision(dt: f32) void {
+    const currProj = life_proj[life];
+    if (!currProj.dead) {
+        life_proj[life].dead = true;
+        proj = get_life();
+    }
+    bar_collision(dt);
+    const barPos = bar.getCenter();
+    const projPos = proj.getCenter();
+    const dist = barPos.subtract(projPos).normalize();
+    const proj_nx = proj.react.x + dist.x * PROJ_SPEED * dt;
+    const proj_ny = proj.react.y + dist.y * PROJ_SPEED * dt;
+    if (proj.overlaps(bar, proj_nx, proj_ny)) {
+        state = .READY;
+        return;
+    }
+    proj.react.x = proj_nx;
+    proj.react.y = proj_ny;
+    return;
+}
 fn update(dt: f32) void {
     if (pause) return;
     if (life <= 0) {
@@ -188,25 +215,34 @@ fn update(dt: f32) void {
         state = .VICTORY;
         return;
     }
-    if (state == .READY) {
-        bar_collision(dt);
-        proj.setCenterX(bar.getCenterX());
-        return;
+    switch (state) {
+        .START => life_collision(dt),
+        .READY => {
+            bar_collision(dt);
+            proj.setCenterX(bar.getCenterX());
+            return;
+        },
+        else => {
+            if (proj.overlaps(bar, null, null)) {
+                proj.react.y = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE - 1.0;
+                return;
+            }
+            bar_collision(dt);
+            horz_collision(dt);
+            vert_collision(dt);
+        },
     }
-    if (proj.overlaps(bar, null, null)) {
-        proj.react.y = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE - 1.0;
-        return;
-    }
-    bar_collision(dt);
-    horz_collision(dt);
-    vert_collision(dt);
 }
 
 fn render() void {
-    rl.drawText(rl.textFormat("Score: %d", .{score}), WINDOW_WIDTH - 150, 10, 20, rl.getColor(PROJ_COLOR));
-    rl.drawText(rl.textFormat("Lives: %d", .{life}), WINDOW_WIDTH - 150, 50, 20, rl.getColor(PROJ_COLOR));
+    rl.drawText(rl.textFormat("Score: %d", .{score}), 10, 10, 20, rl.getColor(PROJ_COLOR));
     drawEntity(&bar);
     drawEntity(&proj);
+    for (life_proj) |lproj| {
+        if (!lproj.dead) {
+            drawEntity(&lproj);
+        }
+    }
     for (targets_pool) |target| {
         if (!target.dead) {
             drawEntity(&target);
@@ -231,7 +267,6 @@ pub fn main() !void {
     const restartT = Text.init(RESTART_T, 40, 0xFFFFFFFF, dfont);
     const oylT = Text.init(OYL_T, 64, 0xFFFFFFFF, dfont);
     const wonT = Text.init(WON_T, 64, 0xFFFFFFFF, dfont);
-
     while (!rl.windowShouldClose()) { // Detect window close button or ESC key
         const dt: f32 = rl.getFrameTime();
         bar.dx = 0;
@@ -256,12 +291,12 @@ pub fn main() !void {
             }
         }
         switch (state) {
-            .PLAY, .READY => update(dt),
+            .PLAY, .READY, .START => update(dt),
             .GAMEOVER, .VICTORY => if (rl.isKeyPressed(.r)) {
                 reset();
                 state = .RESTART;
             },
-            .RESTART => state = .READY,
+            .RESTART => state = .START,
             else => {},
         }
         // Draw

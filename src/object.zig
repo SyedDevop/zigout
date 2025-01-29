@@ -84,11 +84,20 @@ pub const Entity = struct {
         return rl.checkCollisionRecs(updatedRect, otherEntity.react);
     }
 
-    /// Returns the x-coordinate of the center of the rectangle.
-    pub fn getCenterX(self: *const Self) f32 {
+    /// Returns the x-coordinate of the center of the [Entity].
+    pub inline fn getCenterX(self: *const Self) f32 {
         return self.react.x + self.react.width / 2;
     }
 
+    /// Returns the y-coordinate of the center of the [Entity].
+    pub inline fn getCenterY(self: *const Self) f32 {
+        return self.react.y + self.react.height / 2;
+    }
+
+    /// Returns the Coordinate of the center of the [Entity].
+    pub inline fn getCenter(self: *const Self) rl.Vector2 {
+        return .{ .x = self.getCenterX(), .y = self.getCenterY() };
+    }
     /// Sets the x-coordinate of the center of the rectangle.
     pub fn setCenterX(self: *Self, x: f32) void {
         self.react.x = x - self.react.width / 2;

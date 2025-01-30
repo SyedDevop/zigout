@@ -2,7 +2,7 @@ const std = @import("std");
 const math = std.math;
 const rl = @import("raylib");
 
-pub const WINDOW_WIDTH = 1080;
+pub const WINDOW_WIDTH = 1600;
 pub const WINDOW_HEIGHT = 900;
 
 pub const StateKind = enum {

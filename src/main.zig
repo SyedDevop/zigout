@@ -77,7 +77,7 @@ fn init_bar() Entity {
         .height = BAR_THICCNESS,
     } };
 }
-fn init_proj() [LIFES]Entity {
+fn init_projs() [LIFES]Entity {
     var lifes: [LIFES]Entity = undefined;
     const life_size = PROJ_SIZE;
     for (0..LIFES) |i| {
@@ -91,7 +91,13 @@ fn init_proj() [LIFES]Entity {
     return lifes;
 }
 fn get_life() Entity {
-    return life_proj[life];
+    return life_pool[life - 1];
+}
+
+fn reset_lifes() void {
+    for (life_pool[0..]) |*it| {
+        it.dead = false;
+    }
 }
 fn reset_target() void {
     for (targets_pool[0..]) |*it| {
@@ -99,9 +105,9 @@ fn reset_target() void {
     }
 }
 var targets_pool = init_targets();
-var life: u8 = LIFES - 1;
+var life: u8 = LIFES;
 var bar: Entity = init_bar();
-var life_proj: [LIFES]Entity = init_proj();
+var life_pool: [LIFES]Entity = init_projs();
 var proj: Entity = undefined;
 var collid_sound: rl.Sound = undefined;
 var death_sound: rl.Sound = undefined;
@@ -120,11 +126,12 @@ fn reset() void {
     pause = false;
     score = 0;
     state = .READY;
-    life = 4;
+    life = LIFES;
     left = false;
     right = false;
     bar = init_bar();
     reset_target();
+    reset_lifes();
 }
 
 fn horz_collision(dt: f32) void {
@@ -153,9 +160,7 @@ fn vert_collision(dt: f32) void {
     }
     if (proj_ny + PROJ_SIZE > WINDOW_HEIGHT) {
         rl.playSound(death_sound);
-        life -|= 1;
-        proj.react.y = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE;
-        proj.react.x = bar.react.x + BAR_LEN / 2 - PROJ_SIZE / 2;
+        life -= 1;
         state = .START;
         return;
     }
@@ -186,17 +191,17 @@ fn bar_collision(dt: f32) void {
     bar.react.x = bar_nx;
 }
 fn life_collision(dt: f32) void {
-    const currProj = life_proj[life];
+    const currProj = life_pool[life - 1];
     if (!currProj.dead) {
-        life_proj[life].dead = true;
+        life_pool[life - 1].dead = true;
         proj = get_life();
     }
     bar_collision(dt);
     const barPos = bar.getCenter();
     const projPos = proj.getCenter();
     const dist = barPos.subtract(projPos).normalize();
-    const proj_nx = proj.react.x + dist.x * PROJ_SPEED * dt;
-    const proj_ny = proj.react.y + dist.y * PROJ_SPEED * dt;
+    const proj_nx = proj.react.x + dist.x * (PROJ_SPEED * 4) * dt;
+    const proj_ny = proj.react.y + dist.y * (PROJ_SPEED * 4) * dt;
     if (proj.overlaps(bar, proj_nx, proj_ny)) {
         state = .READY;
         return;
@@ -238,7 +243,7 @@ fn render() void {
     rl.drawText(rl.textFormat("Score: %d", .{score}), 10, 10, 20, rl.getColor(PROJ_COLOR));
     drawEntity(&bar);
     drawEntity(&proj);
-    for (life_proj) |lproj| {
+    for (life_pool) |lproj| {
         if (!lproj.dead) {
             drawEntity(&lproj);
         }
@@ -305,7 +310,7 @@ pub fn main() !void {
         defer rl.endDrawing();
         rl.clearBackground(rl.getColor(BACKGROUND_COLOR));
         render();
-        if (show_fps) rl.drawFPS(10, 10);
+        if (show_fps) rl.drawFPS(WINDOW_WIDTH - 150, 10);
         if (pause) pauseT.drawAtCenter();
         switch (state) {
             .GAMEOVER => {

@@ -115,6 +115,8 @@ var score: u32 = 0;
 var state: StateKind = .START;
 var pause = false;
 var show_fps = false;
+var god_mode = false;
+var kill_all = false;
 var left = false;
 var right = false;
 
@@ -159,6 +161,11 @@ fn vert_collision(dt: f32) void {
         return;
     }
     if (proj_ny + PROJ_SIZE > WINDOW_HEIGHT) {
+        if (god_mode) {
+            proj.dy += 1.005;
+            proj.dy *= -1;
+            return;
+        }
         rl.playSound(death_sound);
         life -= 1;
         state = .START;
@@ -196,7 +203,6 @@ fn life_collision(dt: f32) void {
         life_pool[life - 1].dead = true;
         proj = get_life();
     }
-    bar_collision(dt);
     const barPos = bar.getCenter();
     const projPos = proj.getCenter();
     const dist = barPos.subtract(projPos).normalize();
@@ -220,10 +226,10 @@ fn update(dt: f32) void {
         state = .VICTORY;
         return;
     }
+    bar_collision(dt);
     switch (state) {
         .START => life_collision(dt),
         .READY => {
-            bar_collision(dt);
             proj.setCenterX(bar.getCenterX());
             return;
         },
@@ -232,7 +238,6 @@ fn update(dt: f32) void {
                 proj.react.y = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE - 1.0;
                 return;
             }
-            bar_collision(dt);
             horz_collision(dt);
             vert_collision(dt);
         },
@@ -241,6 +246,7 @@ fn update(dt: f32) void {
 
 fn render() void {
     rl.drawText(rl.textFormat("Score: %d", .{score}), 10, 10, 20, rl.getColor(PROJ_COLOR));
+    if (god_mode) rl.drawText("God Mode", WINDOW_WIDTH - 150, 40, 20, .{ .r = 255, .b = 50, .g = 50, .a = 255 });
     drawEntity(&bar);
     drawEntity(&proj);
     for (life_pool) |lproj| {
@@ -254,12 +260,16 @@ fn render() void {
         }
     }
 }
-
+fn killAll() void {
+    for (targets_pool[0..]) |*target| {
+        target.dead = true;
+    }
+    score = targets_pool.len;
+}
 fn drawEntity(en: *const Entity) void {
     rl.drawRectangleRec(en.react, en.color);
 }
 pub fn main() !void {
-    rl.setConfigFlags(.{ .window_highdpi = true });
     rl.initWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "[Z]brake");
     // rl.toggleBorderlessWindowed();
     rl.initAudioDevice();
@@ -283,7 +293,9 @@ pub fn main() !void {
             bar.dx += 1;
             right = true;
         }
+        if (rl.isKeyPressed(.k)) killAll();
         if (rl.isKeyPressed(.f4)) show_fps = !show_fps;
+        if (rl.isKeyPressed(.f5)) god_mode = !god_mode;
         if (rl.isKeyPressed(.space)) {
             switch (state) {
                 .PLAY => pause = !pause,

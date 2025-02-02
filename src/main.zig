@@ -109,8 +109,6 @@ var life: u8 = LIFES;
 var bar: Entity = init_bar();
 var life_pool: [LIFES]Entity = init_projs();
 var proj: Entity = undefined;
-var collid_sound: rl.Sound = undefined;
-var death_sound: rl.Sound = undefined;
 var score: u32 = 0;
 var state: StateKind = .START;
 var pause = false;
@@ -120,9 +118,10 @@ var kill_all = false;
 var left = false;
 var right = false;
 
-// TODO: game won  sound and message.
-// TODO: game lose sound and message.
-// TODO: new color pallet for target.
+var collid_sound: rl.Sound = undefined;
+var death_sound: rl.Sound = undefined;
+var lose_sound: rl.Sound = undefined;
+var win_sound: rl.Sound = undefined;
 
 fn reset() void {
     pause = false;
@@ -220,10 +219,12 @@ fn update(dt: f32) void {
     if (pause) return;
     if (life <= 0) {
         state = .GAMEOVER;
+        rl.playSound(lose_sound);
         return;
     }
     if (score >= TARGET_ROWS * TARGET_COLS) {
         state = .VICTORY;
+        rl.playSound(win_sound);
         return;
     }
     bar_collision(dt);
@@ -275,6 +276,9 @@ pub fn main() !void {
     rl.initAudioDevice();
     collid_sound = try rl.loadSound("assets/sounds/collide.wav");
     death_sound = try rl.loadSound("assets/sounds/lose.wav");
+    lose_sound = try rl.loadSound("assets/sounds/die.wav");
+    win_sound = try rl.loadSound("assets/sounds/win.wav");
+
     defer rl.closeWindow(); // Close window and OpenGL context
     rl.setTargetFPS(FPS); // Set our game to run at 60 frames-per-second
     const dfont = try rl.getFontDefault();
@@ -282,6 +286,7 @@ pub fn main() !void {
     const restartT = Text.init(RESTART_T, 40, 0xFFFFFFFF, dfont);
     const oylT = Text.init(OYL_T, 64, 0xFFFFFFFF, dfont);
     const wonT = Text.init(WON_T, 64, 0xFFFFFFFF, dfont);
+
     while (!rl.windowShouldClose()) { // Detect window close button or ESC key
         const dt: f32 = rl.getFrameTime();
         bar.dx = 0;

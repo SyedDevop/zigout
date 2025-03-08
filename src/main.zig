@@ -275,8 +275,8 @@ pub fn main() !void {
     // rl.toggleBorderlessWindowed();
     rl.initAudioDevice();
     collid_sound = try rl.loadSound("assets/sounds/collide.wav");
-    death_sound = try rl.loadSound("assets/sounds/lose.wav");
-    lose_sound = try rl.loadSound("assets/sounds/die.wav");
+    death_sound = try rl.loadSound("assets/sounds/die.wav");
+    lose_sound = try rl.loadSound("assets/sounds/lose.wav");
     win_sound = try rl.loadSound("assets/sounds/win.wav");
 
     defer rl.closeWindow(); // Close window and OpenGL context

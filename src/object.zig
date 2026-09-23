@@ -104,6 +104,21 @@ pub const Entity = struct {
     }
 };
 
+pub inline fn lerp(a: f32, b: f32, t: f32) f32 {
+    return a + (b - a) * t;
+}
+
+pub inline fn inverceLerp(a: f32, b: f32, t: f32) f32 {
+    const alpha = t * t; // Quadratic easing (slower at start, faster at end)
+    return a + (b - a) * alpha;
+}
+
+pub inline fn smooth(curr: f32, target: f32, factor: f32) f32 {
+    return curr + (target - curr) * (1 - @exp(-factor));
+}
+pub inline fn easeInQuad(t: f32) f32 {
+    return t * t;
+}
 pub const MyColor = struct {
     r: f32,
     g: f32,

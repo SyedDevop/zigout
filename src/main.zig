@@ -229,11 +229,10 @@ fn update(dt: f32) void {
     }
     bar_collision(dt);
     switch (state) {
-        .START => life_collision(dt),
-        .READY => {
-            proj.setCenterX(bar.getCenterX());
-            return;
-        },
+        .START => state = .ATTACH,
+        .ATTACH => life_collision(dt),
+        .READY => proj.setCenterX(bar.getCenterX()), // this anchor the projectile to bar till .PLAY state
+
         else => {
             if (proj.overlaps(bar, null, null)) {
                 proj.react.y = BAR_Y - BAR_THICCNESS / 2 - PROJ_SIZE - 1.0;
@@ -270,6 +269,10 @@ fn killAll() void {
 fn drawEntity(en: *const Entity) void {
     rl.drawRectangleRec(en.react, en.color);
 }
+
+// TODO :
+// - [ ]:
+
 pub fn main() !void {
     rl.initWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "[Z]brake");
     // rl.toggleBorderlessWindowed();
@@ -313,7 +316,7 @@ pub fn main() !void {
             }
         }
         switch (state) {
-            .PLAY, .READY, .START => update(dt),
+            .PLAY, .READY, .START, .ATTACH => update(dt),
             .GAMEOVER, .VICTORY => if (rl.isKeyPressed(.r)) {
                 reset();
                 state = .RESTART;

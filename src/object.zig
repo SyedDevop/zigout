@@ -119,6 +119,7 @@ pub inline fn smooth(curr: f32, target: f32, factor: f32) f32 {
 pub inline fn easeInQuad(t: f32) f32 {
     return t * t;
 }
+
 pub const MyColor = struct {
     r: f32,
     g: f32,

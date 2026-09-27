@@ -69,6 +69,7 @@ fn init_targets() [TARGET_ROWS * TARGET_COLS]Entity {
     }
     return targets;
 }
+
 fn init_bar() Entity {
     return .{ .color = .{ .r = 255, .g = 50, .b = 50, .a = 255 }, .react = .{
         .x = WINDOW_WIDTH / 2 - BAR_LEN / 2,
@@ -104,7 +105,7 @@ fn reset_target() void {
         it.dead = false;
     }
 }
-var targets_pool = init_targets();
+var targets_pool: [TARGET_ROWS * TARGET_COLS]Entity = undefined;
 var life: u8 = LIFES;
 var bar: Entity = init_bar();
 var life_pool: [LIFES]Entity = init_projs();
@@ -270,10 +271,8 @@ fn drawEntity(en: *const Entity) void {
     rl.drawRectangleRec(en.react, en.color);
 }
 
-// TODO :
-// - [ ]:
-
 pub fn main() !void {
+    targets_pool = init_targets();
     rl.initWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "[Z]brake");
     // rl.toggleBorderlessWindowed();
     rl.initAudioDevice();

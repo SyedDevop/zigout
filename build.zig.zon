@@ -1,10 +1,11 @@
 .{
-    .name = "zbreak",
+    .name = .zbreak,
     .version = "0.0.0",
+    .fingerprint = 0xd12528c31510cf8c,
     .dependencies = .{
-        .@"raylib-zig" = .{
-            .url = "git+https://github.com/Not-Nik/raylib-zig?ref=devel#1ef4995f82686fda7c2eff1c76f26d1200d74760",
-            .hash = "12206cf18aea41dc1e61b697c36ef627752e84fe9a9362b800240fce7dea3665094d",
+        .raylib_zig = .{
+            .url = "git+https://github.com/raylib-zig/raylib-zig?ref=devel#8758f4cd3a5ae0df6941c4715257223d34c5ad3e",
+            .hash = "raylib_zig-6.0.0-KE8RECZ8BQDm-txuospkpZHbJ6DNpacUF7D88RWQ_qAe",
         },
     },
     .paths = .{

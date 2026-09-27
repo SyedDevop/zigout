@@ -6,9 +6,11 @@ pub fn build(b: *std.Build) void {
 
     const exe = b.addExecutable(.{
         .name = "zbreak",
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     // const dic = b.addExecutable(.{
     //     .name = "zb",
@@ -16,7 +18,7 @@ pub fn build(b: *std.Build) void {
     //     .target = target,
     //     .optimize = optimize,
     // });
-    const raylib_dep = b.dependency("raylib-zig", .{
+    const raylib_dep = b.dependency("raylib_zig", .{
         .target = target,
         .optimize = optimize,
     });
@@ -24,7 +26,7 @@ pub fn build(b: *std.Build) void {
     const raylib = raylib_dep.module("raylib"); // main raylib module
     const raygui = raylib_dep.module("raygui"); // raygui module
     const raylib_artifact = raylib_dep.artifact("raylib"); // raylib C library
-    exe.linkLibrary(raylib_artifact);
+    exe.root_module.linkLibrary(raylib_artifact);
     exe.root_module.addImport("raylib", raylib);
     exe.root_module.addImport("raygui", raygui);
 
@@ -52,9 +54,11 @@ pub fn build(b: *std.Build) void {
     // run_step_dic.dependOn(&run_cmd_dic.step);
 
     const exe_tests = b.addTest(.{
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     const test_step = b.step("test", "Run unit tests");

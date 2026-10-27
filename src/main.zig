@@ -1,7 +1,9 @@
 const std = @import("std");
 const math = std.math;
 const rl = @import("raylib");
+
 const object = @import("object.zig");
+const Particle = @import("Particle.zig");
 
 const Text = object.Text;
 const MyColor = object.MyColor;
@@ -34,15 +36,19 @@ const TARGET_GRID_X = WINDOW_WIDTH / 2 - TARGET_GRID_WIDTH / 2;
 const TARGET_GRID_Y = 50;
 const TARGET_COLOR = 0x30FF30FF;
 const LIFES: u8 = 4;
+const TOTAL_ENTITY = TARGET_ROWS * TARGET_COLS;
+const PARTICLE_BASE_SIZE = 6;
+const PARTICLE_BASE_VELOCITY = 300;
+const PARTICLE_LIFETIME = 1.25;
+const PARTICLE_BURST_HIT_COUNT = 20;
+const PARTICLE_BURST_DEATH_COUNT = 50;
 // Constant text to display
 const PAUSE_T = "Game Is Paused";
 const RESTART_T = "Press r to restart";
 const OYL_T = "Game Over You Lose";
 const WON_T = "Game Won";
 
-fn init_targets() [TARGET_ROWS * TARGET_COLS]Entity {
-    var targets: [TARGET_ROWS * TARGET_COLS]Entity = undefined;
-
+fn init_targets(targets: []Entity) void {
     const red = MyColor.srgb_to_linear(.{ .r = 255, .g = 46, .b = 46, .a = 255 }); // ~1, 0.18, 0.18, 1
     const green = MyColor.srgb_to_linear(.{ .r = 46, .g = 255, .b = 46, .a = 255 }); // ~0.18, 1, 0.18, 1
     const blue = MyColor.srgb_to_linear(.{ .r = 46, .g = 46, .b = 255, .a = 255 }); // ~0.18, 0.18, 1, 1
@@ -67,7 +73,6 @@ fn init_targets() [TARGET_ROWS * TARGET_COLS]Entity {
             } };
         }
     }
-    return targets;
 }
 
 fn init_bar() Entity {
@@ -105,7 +110,11 @@ fn reset_target() void {
         it.dead = false;
     }
 }
-var targets_pool: [TARGET_ROWS * TARGET_COLS]Entity = undefined;
+// @section:State
+var particle_pool: [255]Particle = @splat(Particle.default);
+var targets_pool: [TOTAL_ENTITY]Entity = undefined;
+var alive_particles: usize = undefined;
+var emitter_pried: f32 = 5;
 var life: u8 = LIFES;
 var bar: Entity = init_bar();
 var life_pool: [LIFES]Entity = init_projs();
@@ -113,6 +122,7 @@ var proj: Entity = undefined;
 var score: u32 = 0;
 var state: StateKind = .START;
 var pause = false;
+var show_alive_particle = false;
 var show_fps = false;
 var god_mode = false;
 var kill_all = false;
@@ -123,6 +133,7 @@ var collid_sound: rl.Sound = undefined;
 var death_sound: rl.Sound = undefined;
 var lose_sound: rl.Sound = undefined;
 var win_sound: rl.Sound = undefined;
+// @section:State::end
 
 fn reset() void {
     pause = false;
@@ -138,16 +149,19 @@ fn reset() void {
 
 fn horz_collision(dt: f32) void {
     const proj_nx: f32 = proj.react.x + proj.dx * PROJ_SPEED * dt;
-    if (proj_nx < 0 or proj_nx + PROJ_SIZE > WINDOW_WIDTH or proj.overlaps(bar, proj_nx, null)) {
+    const proj_collided_with_bar = proj.overlaps(bar, proj_nx, null);
+    if (proj_nx < 0 or proj_nx + PROJ_SIZE > WINDOW_WIDTH or proj_collided_with_bar) {
         proj.dx *= -1;
         return;
     }
+    if (proj_collided_with_bar) particleBurst(bar.react, bar.color, PARTICLE_BURST_HIT_COUNT);
     for (targets_pool[0..]) |*it| {
         if (!it.dead and proj.overlaps(it.*, proj_nx, null)) {
             rl.playSound(collid_sound);
             score += 1;
             it.dead = true;
             proj.dx *= -1;
+            particleBurst(proj.react, it.color, PARTICLE_BURST_HIT_COUNT);
             return;
         }
     }
@@ -174,6 +188,7 @@ fn vert_collision(dt: f32) void {
     if (proj.overlaps(bar, null, proj_ny)) {
         if (bar.dx != 0) proj.dx = bar.dx;
         proj.dy *= -1;
+        particleBurst(bar.react, bar.color, PARTICLE_BURST_HIT_COUNT);
         return;
     }
     for (targets_pool[0..]) |*it| {
@@ -182,6 +197,7 @@ fn vert_collision(dt: f32) void {
             score += 1;
             it.dead = true;
             proj.dy *= -1;
+            particleBurst(proj.react, it.color, PARTICLE_BURST_HIT_COUNT);
             return;
         }
     }
@@ -210,17 +226,31 @@ fn life_collision(dt: f32) void {
     const proj_ny = proj.react.y + dist.y * (PROJ_SPEED * 4) * dt;
     if (proj.overlaps(bar, proj_nx, proj_ny)) {
         state = .READY;
+        particleBurst(bar.react, bar.color, PARTICLE_BURST_HIT_COUNT);
         return;
     }
     proj.react.x = proj_nx;
     proj.react.y = proj_ny;
     return;
 }
+fn updateParticle(dt: f32) void {
+    alive_particles = 0;
+    for (&particle_pool) |*par| {
+        if (!par.isAlive()) continue;
+        alive_particles += 1;
+        par.*.position = par.*.position.add(par.*.velocity.scale(dt));
+        par.*.lifetime -= dt;
+    }
+}
+
 fn update(dt: f32) void {
+    updateParticle(dt);
     if (pause) return;
     if (life <= 0) {
         state = .GAMEOVER;
         rl.playSound(lose_sound);
+        particleBurst(bar.react, bar.color, PARTICLE_BURST_DEATH_COUNT);
+        bar.color.a = 0;
         return;
     }
     if (score >= TARGET_ROWS * TARGET_COLS) {
@@ -229,6 +259,7 @@ fn update(dt: f32) void {
         return;
     }
     bar_collision(dt);
+
     switch (state) {
         .START => state = .ATTACH,
         .ATTACH => life_collision(dt),
@@ -248,6 +279,9 @@ fn update(dt: f32) void {
 fn render() void {
     rl.drawText(rl.textFormat("Score: %d", .{score}), 10, 10, 20, rl.getColor(PROJ_COLOR));
     if (god_mode) rl.drawText("God Mode", WINDOW_WIDTH - 150, 40, 20, .{ .r = 255, .b = 50, .g = 50, .a = 255 });
+    if (show_alive_particle) {
+        rl.drawText(rl.textFormat("Alive Particles: %d", .{alive_particles}), WINDOW_WIDTH - 200, 60, 20, .{ .r = 50, .b = 155, .g = 150, .a = 255 });
+    }
     drawEntity(&bar);
     drawEntity(&proj);
     for (life_pool) |lproj| {
@@ -258,6 +292,14 @@ fn render() void {
     for (targets_pool) |target| {
         if (!target.dead) {
             drawEntity(&target);
+        }
+    }
+    for (particle_pool) |particle| {
+        if (particle.isAlive()) {
+            const size_mul = particle.size_multiplayer * PARTICLE_BASE_SIZE;
+            var color = particle.color;
+            color.a = @intFromFloat((particle.lifetime / PARTICLE_LIFETIME) * 255);
+            rl.drawRectangleV(particle.position, .{ .x = size_mul, .y = size_mul }, color);
         }
     }
 }
@@ -271,8 +313,38 @@ fn drawEntity(en: *const Entity) void {
     rl.drawRectangleRec(en.react, en.color);
 }
 
-pub fn main() !void {
-    targets_pool = init_targets();
+fn particleBurst(rect: rl.Rectangle, color: rl.Color, count: u8) void {
+    for (0..count) |_| {
+        var pos: rl.Vector2 = .zero();
+        pos.x = rect.x + rand.float(f32) * rect.width;
+        pos.y = rect.y + rand.float(f32) * rect.height;
+        emitParticle(pos, color);
+    }
+}
+fn emitParticle(pos: rl.Vector2, color: rl.Color) void {
+    for (&particle_pool) |*par| {
+        if (par.isAlive()) continue;
+        const angle = rand.float(f32) * 2 * std.math.pi;
+        const t = rand.float(f32) + 0.5;
+        const angle_x = @cos(angle);
+        const angle_y = @sin(angle);
+        par.*.velocity = (rl.Vector2{ .x = angle_x, .y = angle_y }).scale(PARTICLE_BASE_VELOCITY * t);
+        par.*.position = pos;
+        par.*.color = color;
+        par.size_multiplayer = rand.float(f32) + 0.5;
+        par.lifetime = PARTICLE_LIFETIME;
+        return;
+    }
+}
+
+var rand: std.Random = undefined;
+pub fn main(init: std.process.Init) !void {
+    var seed: u64 = undefined;
+    init.io.random(std.mem.asBytes(&seed));
+    var prng = std.Random.DefaultPrng.init(seed);
+    rand = prng.random();
+
+    init_targets(&targets_pool);
     rl.initWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "[Z]brake");
     // rl.toggleBorderlessWindowed();
     rl.initAudioDevice();
@@ -301,6 +373,7 @@ pub fn main() !void {
             right = true;
         }
         if (rl.isKeyPressed(.k)) killAll();
+        if (rl.isKeyPressed(.f3)) show_alive_particle = !show_alive_particle;
         if (rl.isKeyPressed(.f4)) show_fps = !show_fps;
         if (rl.isKeyPressed(.f5)) god_mode = !god_mode;
         if (rl.isKeyPressed(.space)) {
@@ -335,6 +408,7 @@ pub fn main() !void {
             .GAMEOVER => {
                 oylT.drawAtCenter();
                 restartT.drawAtCenterWight(null, 60);
+                updateParticle(dt);
             },
             .VICTORY => {
                 wonT.drawAtCenter();

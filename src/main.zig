@@ -46,11 +46,11 @@ fn init_targets() [TARGET_ROWS * TARGET_COLS]Entity {
     const red = MyColor.srgb_to_linear(.{ .r = 255, .g = 46, .b = 46, .a = 255 }); // ~1, 0.18, 0.18, 1
     const green = MyColor.srgb_to_linear(.{ .r = 46, .g = 255, .b = 46, .a = 255 }); // ~0.18, 1, 0.18, 1
     const blue = MyColor.srgb_to_linear(.{ .r = 46, .g = 46, .b = 255, .a = 255 }); // ~0.18, 0.18, 1, 1
-    const level = 0.5;
+    const level: f32 = 0.5;
     for (0..TARGET_ROWS) |row| {
         for (0..TARGET_COLS) |col| {
             const t = @as(f32, @floatFromInt(row)) / TARGET_ROWS;
-            const c = if (t < level) 1.0 else 0.0;
+            const c: f32 = if (t < level) 1.0 else 0.0;
             const g1 = MyColor.lerp(red, green, t / level);
             const g2 = MyColor.lerp(green, blue, (t - level) / (1 - level));
             const color = MyColor.linear_to_srgb(.{

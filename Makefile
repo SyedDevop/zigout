@@ -2,7 +2,7 @@
 
 WASM_SRC := ./web/game.zig
 WASM_OUT := ./web/game.wasm
-WASM_TARGET := wasm32-wasi #wasm32-freestanding
+WASM_TARGET := wasm32-freestanding
 WASM_OPT := ReleaseSmall
 
 wasm:

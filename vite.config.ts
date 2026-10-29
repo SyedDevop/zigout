@@ -3,26 +3,16 @@ import { resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 
 const WASM_SRC = resolve(import.meta.dirname, "web/game.zig");
-const WASM_OUT = resolve(import.meta.dirname, "web/game.wasm");
+const WASM_OUT = "web/game.wasm";
 
-// Rebuilds web/game.wasm from web/game.zig on startup and whenever the Zig source changes.
 function zigWasm(optimize: string): Plugin {
-  const build = () =>
-    execFileSync(
-      "zig",
-      [
-        "build-exe",
-        "-target",
-        "wasm32-wasi",
-        "-fno-entry",
-        "-rdynamic",
-        "-O",
-        optimize,
-        WASM_SRC,
-        `-femit-bin=${WASM_OUT}`,
-      ],
+  const build = () => {
+    return execFileSync(
+      "make",
+      [`WASM_SRC="${WASM_SRC}"`, `WASM_OUT="${WASM_OUT}"`, `WASM_OPT="${optimize}"`],
       { stdio: "inherit" },
     );
+  };
 
   return {
     name: "zig-wasm",

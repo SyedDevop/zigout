@@ -1,4 +1,7 @@
-.PHONY: wasm wasm2wat serve
+.PHONY: wasm wasm2wat serve main
+
+main: 
+	 zig build
 
 WASM_SRC := ./web/game.zig
 WASM_OUT := ./web/game.wasm

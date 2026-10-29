@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub fn buildWasm(b: *std.Build, optimize: std.builtin.OptimizeMode) void {
+pub fn buildWasm(b: *std.Build) void {
     const wasm_stack_size = b.option(u64, "wasm-stack-size", "Stack size for the WASM target");
     const target = b.resolveTargetQuery(.{
         .cpu_arch = .wasm32,
@@ -11,9 +11,9 @@ pub fn buildWasm(b: *std.Build, optimize: std.builtin.OptimizeMode) void {
     const wasm_exe = b.addExecutable(.{
         .name = "zbreak-wasm",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("web/game.zig"),
+            .root_source_file = b.path("src/Game.zig"),
             .target = target,
-            .optimize = optimize,
+            .optimize = .ReleaseSmall,
         }),
     });
     wasm_exe.entry = .disabled;
@@ -76,5 +76,5 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&exe_tests.step);
 
-    buildWasm(b, optimize);
+    buildWasm(b);
 }

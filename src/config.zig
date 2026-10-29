@@ -1,4 +1,3 @@
-const rl = @import("raylib");
 pub const FPS = 500;
 pub const WINDOW_WIDTH = 1600;
 pub const WINDOW_HEIGHT = 900;
@@ -36,8 +35,3 @@ pub const PAUSE_T = "Game Is Paused";
 pub const RESTART_T = "Press r to restart";
 pub const OYL_T = "Game Over You Lose";
 pub const WON_T = "Game Won";
-
-// COLOR
-pub const RED: rl.Color = .{ .r = 255, .g = 46, .b = 46, .a = 255 };
-pub const GREEN: rl.Color = .{ .r = 46, .g = 255, .b = 46, .a = 255 };
-pub const BLUE: rl.Color = .{ .r = 46, .g = 46, .b = 255, .a = 255 };

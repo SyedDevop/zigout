@@ -1,11 +1,11 @@
 const std = @import("std");
 const math = std.math;
-const rl = @import("raylib");
+const object = @import("object.zig");
 
 pub const Particle = @This();
-position: rl.Vector2,
-velocity: rl.Vector2,
-color: rl.Color,
+position: object.Vector2,
+velocity: object.Vector2,
+color: object.Color,
 size_multiplayer: f32 = 1.0,
 lifetime: f32,
 
@@ -24,7 +24,7 @@ pub fn initializeParticles(particle: []Particle) void {
     for (particle) |*v| v.* = .default;
 }
 
-pub fn init(position: rl.Vector2, velocity: rl.Vector2, color: rl.Color, lifetime: f32) Particle {
+pub fn init(position: object.Vector2, velocity: object.Vector2, color: object.Color, lifetime: f32) Particle {
     return .{ .position = position, .velocity = velocity, .color = color, .lifetime = lifetime };
 }
 

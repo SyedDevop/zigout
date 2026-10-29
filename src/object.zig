@@ -1,7 +1,37 @@
 const std = @import("std");
 const math = std.math;
-const rl = @import("raylib");
+//const rl = @import("raylib");
 const config = @import("config.zig");
+pub const Vector2 = struct {
+    x: f32,
+    y: f32,
+
+    pub fn zero() Vector2 {
+        return .{ .x = 0, .y = 0 };
+    }
+    pub fn subtract(v1: Vector2, v2: Vector2) Vector2 {
+        return .{ .x = v1.x - v2.x, .y = v1.y - v2.y };
+    }
+
+    pub fn add(v1: Vector2, v2: Vector2) Vector2 {
+        return .{ .x = v1.x + v2.x, .y = v1.y + v2.y };
+    }
+
+    pub fn scale(v: Vector2, scalar: f32) Vector2 {
+        return .{ .x = v.x * scalar, .y = v.y * scalar };
+    }
+
+    pub fn normalize(v: Vector2) Vector2 {
+        var res: Vector2 = .{ .x = 0, .y = 0 };
+        const length: f32 = @sqrt((v.x * v.x) + (v.y * v.y));
+        if (length > 0) {
+            const ilength: f32 = 1.0 / length;
+            res.x = v.x * ilength;
+            res.y = v.y * ilength;
+        }
+        return res;
+    }
+};
 
 pub const StateKind = enum {
     // Waiting until the player proves that they can move (with A/D keys)
@@ -21,49 +51,49 @@ pub const StateKind = enum {
     RESTORE_TARGETS,
 };
 
-pub const Text = struct {
-    text: [:0]const u8,
-    x: f32 = 0,
-    y: f32 = 0,
-    size: rl.Vector2,
-    fontSize: i32 = 0,
-    font: rl.Font,
-    color: u32,
-    const Self = @This();
-
-    pub fn init(text: [:0]const u8, fontSize: i32, color: u32, font: rl.Font) Self {
-        const size = rl.measureTextEx(font, text, @as(f32, @floatFromInt(fontSize)), 1.0);
-        return .{ .text = text, .fontSize = fontSize, .color = color, .font = font, .size = size };
-    }
-    pub fn drawAtCenter(self: Self) void {
-        rl.drawText(
-            self.text,
-            @as(i32, (@intFromFloat((config.WINDOW_WIDTH / 2) - (self.size.x / 2)))),
-            config.WINDOW_HEIGHT / 2,
-            self.fontSize,
-            rl.getColor(self.color),
-        );
-    }
-
-    pub fn drawAtCenterWight(self: Self, x: ?i32, y: ?i32) void {
-        const nx = if (x) |v| v else 0;
-        const ny = if (y) |v| v else 0;
-        rl.drawText(
-            self.text,
-            @as(i32, (@intFromFloat((config.WINDOW_WIDTH / 2) - (self.size.x / 2)))) + nx,
-            (config.WINDOW_HEIGHT / 2) + ny,
-            self.fontSize,
-            rl.getColor(self.color),
-        );
+pub const Rectangle = extern struct {
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+    pub fn init(x: f32, y: f32, width: f32, height: f32) Rectangle {
+        return Rectangle{ .x = x, .y = y, .width = width, .height = height };
     }
 };
+
+pub const Color = extern struct {
+    r: u8,
+    g: u8,
+    b: u8,
+    a: u8,
+
+    pub const red = Color.init(255, 46, 46, 255);
+    pub const green = Color.init(46, 228, 46, 255);
+    pub const blue = Color.init(46, 46, 255, 255);
+    pub const white = Color.init(255, 255, 255, 255);
+    pub const black = Color.init(0, 0, 0, 255);
+    pub const blank = Color.init(0, 0, 0, 0);
+    pub fn init(r: u8, g: u8, b: u8, a: u8) Color {
+        return Color{ .r = r, .g = g, .b = b, .a = a };
+    }
+};
+
+// Check collision between two rectangles
+pub fn checkCollisionRecs(rec1: Rectangle, rec2: Rectangle) bool {
+    var collision: bool = false;
+
+    if ((rec1.x < (rec2.x + rec2.width) and (rec1.x + rec1.width) > rec2.x) and
+        (rec1.y < (rec2.y + rec2.height) and (rec1.y + rec1.height) > rec2.y))
+        collision = true;
+    return collision;
+}
 
 pub const Entity = struct {
     dx: f32 = 0,
     dy: f32 = 0,
     dead: bool = false,
-    color: rl.Color,
-    react: rl.Rectangle,
+    color: Color,
+    react: Rectangle,
     const Self = @This();
 
     /// Checks if this entity's rectangle overlaps with another entity's rectangle.
@@ -79,7 +109,7 @@ pub const Entity = struct {
         var updatedRect = self.react;
         if (newY) |y| updatedRect.y = y;
         if (newX) |x| updatedRect.x = x;
-        return rl.checkCollisionRecs(updatedRect, otherEntity.react);
+        return checkCollisionRecs(updatedRect, otherEntity.react);
     }
 
     /// Returns the x-coordinate of the center of the [Entity].
@@ -93,7 +123,7 @@ pub const Entity = struct {
     }
 
     /// Returns the Coordinate of the center of the [Entity].
-    pub inline fn getCenter(self: *const Self) rl.Vector2 {
+    pub inline fn getCenter(self: *const Self) Vector2 {
         return .{ .x = self.getCenterX(), .y = self.getCenterY() };
     }
     /// Sets the x-coordinate of the center of the rectangle.
@@ -124,7 +154,7 @@ pub const MyColor = struct {
     b: f32,
     a: f32,
 
-    pub fn srgb_to_linear(color: rl.Color) MyColor {
+    pub fn srgb_to_linear(color: Color) MyColor {
         const gamma = 2.2;
         return .{
             .r = math.pow(f32, @as(f32, @floatFromInt(color.r)) / 255.0, gamma),
@@ -134,7 +164,7 @@ pub const MyColor = struct {
         };
     }
 
-    pub fn linear_to_srgb(color: MyColor) rl.Color {
+    pub fn linear_to_srgb(color: MyColor) Color {
         const inv_gamma = 1.0 / 2.2;
         return .{
             .r = @intFromFloat(math.pow(f32, color.r, inv_gamma) * 255.0),

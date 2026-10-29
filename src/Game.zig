@@ -1,6 +1,5 @@
 const std = @import("std");
 const math = std.math;
-const rl = @import("raylib");
 
 const object = @import("object.zig");
 const Particle = @import("Particle.zig");
@@ -10,6 +9,9 @@ const Text = object.Text;
 const MyColor = object.MyColor;
 const Entity = object.Entity;
 const StateKind = object.StateKind;
+
+extern fn drawReact(react: object.Rectangle, color: object.Color) void;
+extern fn drawText(text: []const u8, posX: i32, posY: i32, fontSize: i32, color: object.Color) void;
 
 // @section:State
 pub var particle_pool: [255]Particle = @splat(Particle.default);
@@ -22,7 +24,6 @@ pub var life: u8 = config.LIVES;
 pub var emitter_pried: f32 = 5;
 pub var score: u32 = 0;
 pub var pause = false;
-pub var show_alive_particle = false;
 pub var show_fps = false;
 pub var god_mode = false;
 pub var kill_all = false;
@@ -32,19 +33,9 @@ pub var right = false;
 pub var state: StateKind = .START;
 pub var bar: Entity = undefined;
 
-pub var collid_sound: rl.Sound = undefined;
-pub var death_sound: rl.Sound = undefined;
-pub var lose_sound: rl.Sound = undefined;
-pub var win_sound: rl.Sound = undefined;
 // @section:State::end
 
 pub fn init(io: std.Io) !void {
-    {
-        collid_sound = try rl.loadSound("assets/sounds/collide.wav");
-        death_sound = try rl.loadSound("assets/sounds/die.wav");
-        lose_sound = try rl.loadSound("assets/sounds/lose.wav");
-        win_sound = try rl.loadSound("assets/sounds/win.wav");
-    }
     {
         var seed: u64 = undefined;
         io.random(std.mem.asBytes(&seed));
@@ -58,9 +49,9 @@ pub fn init(io: std.Io) !void {
 }
 
 pub fn init_targets() void {
-    const red = MyColor.srgb_to_linear(config.RED); // ~1, 0.18, 0.18, 1
-    const green = MyColor.srgb_to_linear(config.GREEN); // ~0.18, 1, 0.18, 1
-    const blue = MyColor.srgb_to_linear(config.BLUE); // ~0.18, 0.18, 1, 1
+    const red = MyColor.srgb_to_linear(.red); // ~1, 0.18, 0.18, 1
+    const green = MyColor.srgb_to_linear(.green); // ~0.18, 1, 0.18, 1
+    const blue = MyColor.srgb_to_linear(.blue); // ~0.18, 0.18, 1, 1
     const level: f32 = 0.5;
     for (0..config.TARGET_ROWS) |row| {
         for (0..config.TARGET_COLS) |col| {
@@ -82,7 +73,7 @@ pub fn init_targets() void {
 
 pub fn init_bar() void {
     bar = .{
-        .color = config.RED,
+        .color = .red,
         .react = .{
             .x = config.WINDOW_WIDTH / 2 - config.BAR_LEN / 2,
             .y = config.BAR_Y - config.BAR_THICKNESS / 2,
@@ -146,7 +137,7 @@ fn horz_collision(dt: f32) void {
     if (proj_collided_with_bar) particleBurst(bar.react, bar.color, config.PARTICLE_BURST_HIT_COUNT);
     for (targets_pool[0..]) |*it| {
         if (!it.dead and proj.overlaps(it.*, proj_nx, null)) {
-            rl.playSound(collid_sound);
+            //rl.playSound(collid_sound);
             score += 1;
             it.dead = true;
             proj.dx *= -1;
@@ -169,7 +160,7 @@ fn vert_collision(dt: f32) void {
             proj.dy *= -1;
             return;
         }
-        rl.playSound(death_sound);
+        //rl.playSound(death_sound);
         life -= 1;
         state = .START;
         return;
@@ -182,7 +173,7 @@ fn vert_collision(dt: f32) void {
     }
     for (targets_pool[0..]) |*it| {
         if (!it.dead and proj.overlaps(it.*, null, proj_ny)) {
-            rl.playSound(collid_sound);
+            //rl.playSound(collid_sound);
             score += 1;
             it.dead = true;
             proj.dy *= -1;
@@ -202,6 +193,7 @@ fn bar_collision(dt: f32) void {
     if (bar.overlaps(proj, bar_nx, null)) return;
     bar.react.x = bar_nx;
 }
+
 fn life_collision(dt: f32) void {
     const currProj = life_pool[life - 1];
     if (!currProj.dead) {
@@ -222,6 +214,7 @@ fn life_collision(dt: f32) void {
     proj.react.y = proj_ny;
     return;
 }
+
 pub fn updateParticle(dt: f32) void {
     alive_particles = 0;
     for (&particle_pool) |*par| {
@@ -237,14 +230,14 @@ pub fn update(dt: f32) void {
     if (pause) return;
     if (life <= 0) {
         state = .GAMEOVER;
-        rl.playSound(lose_sound);
+        //rl.playSound(lose_sound);
         particleBurst(bar.react, bar.color, config.PARTICLE_BURST_DEATH_COUNT);
         bar.color.a = 0;
         return;
     }
     if (score >= config.TARGET_ROWS * config.TARGET_COLS) {
         state = .VICTORY;
-        rl.playSound(win_sound);
+        //rl.playSound(win_sound);
         return;
     }
     bar_collision(dt);
@@ -266,21 +259,16 @@ pub fn update(dt: f32) void {
 }
 
 pub fn render() void {
-    rl.drawText(rl.textFormat("Score: %d", .{score}), 10, 10, 20, rl.getColor(config.PROJ_COLOR));
-    if (god_mode) rl.drawText("God Mode", config.WINDOW_WIDTH - 150, 40, 20, .{ .r = 255, .b = 50, .g = 50, .a = 255 });
-    if (show_alive_particle) {
-        rl.drawText(rl.textFormat("Alive Particles: %d", .{alive_particles}), config.WINDOW_WIDTH - 200, 60, 20, .{ .r = 50, .b = 155, .g = 150, .a = 255 });
-    }
-    drawEntity(&bar);
-    drawEntity(&proj);
+    drawReact(bar.react, bar.color);
+    drawReact(proj.react, proj.color);
     for (life_pool) |lproj| {
         if (!lproj.dead) {
-            drawEntity(&lproj);
+            drawReact(lproj.react, lproj.color);
         }
     }
     for (targets_pool) |target| {
         if (!target.dead) {
-            drawEntity(&target);
+            drawReact(target.react, target.color);
         }
     }
     for (particle_pool) |particle| {
@@ -288,7 +276,12 @@ pub fn render() void {
             const size_mul = particle.size_multiplayer * config.PARTICLE_BASE_SIZE;
             var color = particle.color;
             color.a = @intFromFloat((particle.lifetime / config.PARTICLE_LIFETIME) * 255);
-            rl.drawRectangleV(particle.position, .{ .x = size_mul, .y = size_mul }, color);
+            drawReact(.{
+                .x = particle.position.x,
+                .y = particle.position.y,
+                .width = size_mul,
+                .height = size_mul,
+            }, color);
         }
     }
 }
@@ -298,26 +291,23 @@ pub fn killAll() void {
     }
     score = targets_pool.len;
 }
-fn drawEntity(en: *const Entity) void {
-    rl.drawRectangleRec(en.react, en.color);
-}
 
-fn particleBurst(rect: rl.Rectangle, color: rl.Color, count: u8) void {
+fn particleBurst(rect: object.Rectangle, color: object.Color, count: u8) void {
     for (0..count) |_| {
-        var pos: rl.Vector2 = .zero();
+        var pos: object.Vector2 = .zero();
         pos.x = rect.x + rand.float(f32) * rect.width;
         pos.y = rect.y + rand.float(f32) * rect.height;
         emitParticle(pos, color);
     }
 }
-fn emitParticle(pos: rl.Vector2, color: rl.Color) void {
+fn emitParticle(pos: object.Vector2, color: object.Color) void {
     for (&particle_pool) |*par| {
         if (par.isAlive()) continue;
         const angle = rand.float(f32) * 2 * std.math.pi;
         const t = rand.float(f32) + 0.5;
         const angle_x = @cos(angle);
         const angle_y = @sin(angle);
-        par.*.velocity = (rl.Vector2{ .x = angle_x, .y = angle_y }).scale(config.PARTICLE_BASE_VELOCITY * t);
+        par.*.velocity = (object.Vector2{ .x = angle_x, .y = angle_y }).scale(config.PARTICLE_BASE_VELOCITY * t);
         par.*.position = pos;
         par.*.color = color;
         par.size_multiplayer = rand.float(f32) + 0.5;

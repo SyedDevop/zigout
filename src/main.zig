@@ -1,16 +1,15 @@
 const std = @import("std");
-const math = std.math;
 const rl = @import("raylib");
 const object = @import("object.zig");
-const Particle = @import("Particle.zig");
 const config = @import("config.zig");
 const Game = @import("Game.zig");
-//const Text = object.Text;
-const MyColor = object.MyColor;
-const Entity = object.Entity;
-const StateKind = object.StateKind;
 
-pub export fn drawReact(react: object.Rectangle, color: object.Color) void {
+var rand: std.Random = undefined;
+
+pub fn randomFloat() f32 {
+    return rand.float(f32);
+}
+pub fn drawReact(react: object.Rectangle, color: object.Color) void {
     rl.drawRectangleRec(.{
         .x = react.x,
         .y = react.y,
@@ -28,11 +27,21 @@ pub var death_sound: rl.Sound = undefined;
 pub var lose_sound: rl.Sound = undefined;
 pub var win_sound: rl.Sound = undefined;
 pub fn main(init: std.process.Init) !void {
+    {
+        var seed: u64 = undefined;
+        init.io.random(std.mem.asBytes(&seed));
+        var prng = std.Random.DefaultPrng.init(seed);
+        rand = prng.random();
+    }
     var show_alive_particle: bool = false;
     rl.initWindow(config.WINDOW_WIDTH, config.WINDOW_HEIGHT, "[Z]brake");
     // rl.toggleBorderlessWindowed();
     rl.initAudioDevice();
-    try Game.init(init.io);
+    const game_init_config = Game.InitConfig{
+        .drawReact = drawReact,
+        .randomFloat = randomFloat,
+    };
+    Game.init(game_init_config);
 
     {
         collid_sound = try rl.loadSound("assets/sounds/collide.wav");

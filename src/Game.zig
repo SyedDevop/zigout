@@ -10,8 +10,15 @@ const MyColor = object.MyColor;
 const Entity = object.Entity;
 const StateKind = object.StateKind;
 
-extern fn drawReact(react: object.Rectangle, color: object.Color) void;
-extern fn drawText(text: []const u8, posX: i32, posY: i32, fontSize: i32, color: object.Color) void;
+//extern fn drawReact(react: object.Rectangle, color: object.Color) void;
+pub const DrawReactFn = fn (react: object.Rectangle, color: object.Color) void;
+pub const RandomFloatFn = fn () f32;
+pub const DrawTextFn = fn (text: []const u8, posX: i32, posY: i32, fontSize: i32, color: object.Color) void;
+pub const InitConfig = struct {
+    drawReact: *const DrawReactFn,
+    //drawText: *const DrawTextFn,
+    randomFloat: *const RandomFloatFn,
+};
 
 // @section:State
 pub var particle_pool: [255]Particle = @splat(Particle.default);
@@ -33,15 +40,15 @@ pub var right = false;
 pub var state: StateKind = .START;
 pub var bar: Entity = undefined;
 
+var drawReact: *const DrawReactFn = undefined;
+//var drawText: *const DrawTextFn = undefined;
+var randomFloat: *const RandomFloatFn = undefined;
 // @section:State::end
 
-pub fn init(io: std.Io) !void {
-    {
-        var seed: u64 = undefined;
-        io.random(std.mem.asBytes(&seed));
-        var prng = std.Random.DefaultPrng.init(seed);
-        rand = prng.random();
-    }
+pub fn init(init_config: InitConfig) void {
+    drawReact = init_config.drawReact;
+    //drawText = init_config.drawText;
+    randomFloat = init_config.randomFloat;
 
     init_targets();
     init_bar();
@@ -295,25 +302,23 @@ pub fn killAll() void {
 fn particleBurst(rect: object.Rectangle, color: object.Color, count: u8) void {
     for (0..count) |_| {
         var pos: object.Vector2 = .zero();
-        pos.x = rect.x + rand.float(f32) * rect.width;
-        pos.y = rect.y + rand.float(f32) * rect.height;
+        pos.x = rect.x + randomFloat() * rect.width;
+        pos.y = rect.y + randomFloat() * rect.height;
         emitParticle(pos, color);
     }
 }
 fn emitParticle(pos: object.Vector2, color: object.Color) void {
     for (&particle_pool) |*par| {
         if (par.isAlive()) continue;
-        const angle = rand.float(f32) * 2 * std.math.pi;
-        const t = rand.float(f32) + 0.5;
+        const angle = randomFloat() * 2 * std.math.pi;
+        const t = randomFloat() + 0.5;
         const angle_x = @cos(angle);
         const angle_y = @sin(angle);
         par.*.velocity = (object.Vector2{ .x = angle_x, .y = angle_y }).scale(config.PARTICLE_BASE_VELOCITY * t);
         par.*.position = pos;
         par.*.color = color;
-        par.size_multiplayer = rand.float(f32) + 0.5;
+        par.size_multiplayer = randomFloat() + 0.5;
         par.lifetime = config.PARTICLE_LIFETIME;
         return;
     }
 }
-
-var rand: std.Random = undefined;

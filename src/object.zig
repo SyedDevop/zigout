@@ -1,9 +1,7 @@
 const std = @import("std");
 const math = std.math;
 const rl = @import("raylib");
-
-pub const WINDOW_WIDTH = 1600;
-pub const WINDOW_HEIGHT = 900;
+const config = @import("config.zig");
 
 pub const StateKind = enum {
     // Waiting until the player proves that they can move (with A/D keys)
@@ -40,8 +38,8 @@ pub const Text = struct {
     pub fn drawAtCenter(self: Self) void {
         rl.drawText(
             self.text,
-            @as(i32, (@intFromFloat((WINDOW_WIDTH / 2) - (self.size.x / 2)))),
-            WINDOW_HEIGHT / 2,
+            @as(i32, (@intFromFloat((config.WINDOW_WIDTH / 2) - (self.size.x / 2)))),
+            config.WINDOW_HEIGHT / 2,
             self.fontSize,
             rl.getColor(self.color),
         );
@@ -52,8 +50,8 @@ pub const Text = struct {
         const ny = if (y) |v| v else 0;
         rl.drawText(
             self.text,
-            @as(i32, (@intFromFloat((WINDOW_WIDTH / 2) - (self.size.x / 2)))) + nx,
-            (WINDOW_HEIGHT / 2) + ny,
+            @as(i32, (@intFromFloat((config.WINDOW_WIDTH / 2) - (self.size.x / 2)))) + nx,
+            (config.WINDOW_HEIGHT / 2) + ny,
             self.fontSize,
             rl.getColor(self.color),
         );

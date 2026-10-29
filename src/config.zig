@@ -1,0 +1,43 @@
+const rl = @import("raylib");
+pub const FPS = 500;
+pub const WINDOW_WIDTH = 1600;
+pub const WINDOW_HEIGHT = 900;
+pub const PAUSE_TEXT_FS: u8 = 64;
+pub const BACKGROUND_COLOR = 0x181818FF;
+pub const PROJ_SIZE: f32 = 25 * 0.80;
+pub const PROJ_SPEED: f32 = 350;
+pub const PROJ_COLOR = 0xFFFFFFFF;
+pub const ANGLE_FACTOR: f32 = 0.45;
+pub const BAR_LEN: f32 = 100;
+pub const BAR_THICKNESS: f32 = PROJ_SIZE;
+pub const BAR_Y: f32 = WINDOW_HEIGHT - PROJ_SIZE - 50;
+pub const BAR_SPEED: f32 = PROJ_SPEED * 1.5;
+pub const BAR_COLOR = 0x3030FFFF;
+pub const TARGET_WIDTH = BAR_LEN;
+pub const TARGET_HEIGHT = PROJ_SIZE;
+pub const TARGET_PADDING_X = 20;
+pub const TARGET_PADDING_Y = 50;
+pub const TARGET_ROWS = 5;
+pub const TARGET_COLS = 11;
+pub const TARGET_GRID_WIDTH = (TARGET_COLS * TARGET_WIDTH + (TARGET_COLS - 1) * TARGET_PADDING_X);
+pub const TARGET_GRID_X = WINDOW_WIDTH / 2 - TARGET_GRID_WIDTH / 2;
+pub const TARGET_GRID_Y = 50;
+pub const TARGET_COLOR = 0x30FF30FF;
+pub const LIVES: u8 = 4;
+pub const TOTAL_ENTITY = TARGET_ROWS * TARGET_COLS;
+pub const PARTICLE_BASE_SIZE = 6;
+pub const PARTICLE_BASE_VELOCITY = 300;
+pub const PARTICLE_LIFETIME = 1.25;
+pub const PARTICLE_BURST_HIT_COUNT = 20;
+pub const PARTICLE_BURST_DEATH_COUNT = 50;
+
+// Constant text to display
+pub const PAUSE_T = "Game Is Paused";
+pub const RESTART_T = "Press r to restart";
+pub const OYL_T = "Game Over You Lose";
+pub const WON_T = "Game Won";
+
+// COLOR
+pub const RED: rl.Color = .{ .r = 255, .g = 46, .b = 46, .a = 255 };
+pub const GREEN: rl.Color = .{ .r = 46, .g = 255, .b = 46, .a = 255 };
+pub const BLUE: rl.Color = .{ .r = 46, .g = 46, .b = 255, .a = 255 };

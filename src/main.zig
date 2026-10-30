@@ -50,7 +50,7 @@ pub fn main(init: std.process.Init) !void {
         win_sound = try rl.loadSound("assets/sounds/win.wav");
     }
     defer rl.closeWindow(); // Close window and OpenGL context
-    rl.setTargetFPS(config.FPS); // Set our game to run at 60 frames-per-second
+    rl.setTargetFPS(60); // Set our game to run at 60 frames-per-second
     const dfont = try rl.getFontDefault();
     const pauseT = Text.init(config.PAUSE_T, 64, 0xFFFFFFFF, dfont);
     const restartT = Text.init(config.RESTART_T, 40, 0xFFFFFFFF, dfont);

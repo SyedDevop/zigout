@@ -3,23 +3,33 @@ import { resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 
 const ZIG_SRC = resolve(import.meta.dirname, "src");
-const WASM_SRC = resolve(import.meta.dirname, "src/wasm.zig");
-const WASM_OUT = "web/game.wasm";
+const WASM_OUT = resolve(import.meta.dirname, "zig-out/bin/zbreak-wasm.wasm"); //"web/game.wasm";
 
 function zigWasm(optimize: string): Plugin {
   const build = () => {
     return execFileSync(
-      "make",
-      ["wasm", `WASM_SRC="${WASM_SRC}"`, `WASM_OUT="${WASM_OUT}"`, `WASM_OPT="${optimize}"`],
+      "zig",
+      ["build", "wasm", "--verbose"],
+      // "zig",
+      // ["wasm", `WASM_SRC="${WASM_SRC}"`, `WASM_OUT="${WASM_OUT}"`, `WASM_OPT="${optimize}"`],
       { stdio: "inherit" },
     );
   };
 
   return {
     name: "zig-wasm",
+    config() {
+      return {
+        resolve: {
+          // Regex so the alias also matches `game.wasm?url` and keeps the query.
+          alias: [{ find: /^game\.wasm(?=\?|$)/, replacement: WASM_OUT }],
+        },
+      };
+    },
+    configureServer(server) {
+      server.watcher.add(ZIG_SRC);
+    },
     buildStart() {
-      this.addWatchFile(WASM_SRC);
-      this.addWatchFile(ZIG_SRC);
       try {
         build();
       } catch (err) {
@@ -29,7 +39,8 @@ function zigWasm(optimize: string): Plugin {
       }
     },
     hotUpdate({ file, server }) {
-      if (file !== WASM_SRC || file !== ZIG_SRC) return;
+      if (this.environment.name !== "client") return;
+      if (!file.startsWith(`${ZIG_SRC}/`) || !file.endsWith(".zig")) return;
       try {
         build();
         server.ws.send({ type: "full-reload" });
@@ -45,9 +56,7 @@ export default defineConfig(({ mode }) => ({
   root: "web",
   publicDir: resolve(import.meta.dirname, "public"),
   plugins: [zigWasm(mode === "production" ? "ReleaseSmall" : "Debug")],
-  server: {
-    port: 5173,
-  },
+  server: { port: 5173 },
   build: {
     outDir: resolve(import.meta.dirname, "dist"),
     emptyOutDir: true,

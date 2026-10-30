@@ -1,7 +1,8 @@
-import wasmUrl from "./game.wasm?url";
-let canvas = document.getElementById("canvas") as HTMLCanvasElement | null;
+import wasmUrl from "game.wasm?url";
+const canvas = document.getElementById("canvas") as HTMLCanvasElement | null;
+const fpsText = document.getElementById("fps-value") as HTMLSpanElement | null;
 if (!canvas) throw new Error("no canvas found");
-let ctx = canvas.getContext("2d");
+const ctx = canvas.getContext("2d");
 if (!ctx) throw new Error("no canvas context found");
 
 /** Exports from web/game.zig. */
@@ -56,27 +57,63 @@ canvas.width = WIDTH;
 canvas.height = HEIGHT;
 exports.init();
 
-let start: number | null = null;
-let framesId: number | null = null;
+let lastTime: number = 0;
+let accumulatedTime: number = 0;
 
-function firstFrame(timestamp: number) {
-  start = timestamp;
-  framesId = window.requestAnimationFrame(frames);
-}
+let frameCount = 0;
+let fpsElapsed = 0;
+const FPS = 1 / 500;
+fpsText && (fpsText.textContent = FPS.toString());
 function frames(timestamp: number) {
-  const dt = (timestamp - start!) / 1000;
-  start = timestamp;
+  const dt = (timestamp - lastTime) / 1000;
+  lastTime = timestamp;
+  accumulatedTime += dt;
+
+  // while (accumulatedTime >= FPS) {
   exports.update(dt);
+  // accumulatedTime -= FPS;
+  // }
   ctx!.fillStyle = `#${BG_COLOR.toString(16).padStart(8, "0")}`;
   ctx!.fillRect(0, 0, WIDTH, HEIGHT);
   exports.render();
-  framesId = window.requestAnimationFrame(frames);
+
+  frameCount++;
+  fpsElapsed += dt;
+
+  if (fpsElapsed >= 1) {
+    if (fpsText) {
+      fpsText.textContent = frameCount.toString();
+    }
+
+    frameCount = 0;
+    fpsElapsed = 0;
+  }
+
+  window.requestAnimationFrame(frames);
 }
-framesId = window.requestAnimationFrame(frames);
+window.requestAnimationFrame(frames);
 
 document.addEventListener("keydown", (e) => {
-  exports.keyPressed(e.keyCode);
+  switch (e.key) {
+    case "ArrowLeft":
+      exports.keyPressed(130);
+      break;
+    case "ArrowRight":
+      exports.keyPressed(131);
+      break;
+    default:
+      exports.keyPressed(e.key.charCodeAt(0));
+  }
 });
 document.addEventListener("keyup", (e) => {
-  exports.keyReleased(e.keyCode);
+  switch (e.key) {
+    case "ArrowLeft":
+      exports.keyReleased(130);
+      break;
+    case "ArrowRight":
+      exports.keyReleased(131);
+      break;
+    default:
+      exports.keyReleased(e.key.charCodeAt(0));
+  }
 });

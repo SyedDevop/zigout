@@ -2,14 +2,15 @@ import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 
-const WASM_SRC = resolve(import.meta.dirname, "web/game.zig");
+const ZIG_SRC = resolve(import.meta.dirname, "src");
+const WASM_SRC = resolve(import.meta.dirname, "src/wasm.zig");
 const WASM_OUT = "web/game.wasm";
 
 function zigWasm(optimize: string): Plugin {
   const build = () => {
     return execFileSync(
       "make",
-      [`WASM_SRC="${WASM_SRC}"`, `WASM_OUT="${WASM_OUT}"`, `WASM_OPT="${optimize}"`],
+      ["wasm", `WASM_SRC="${WASM_SRC}"`, `WASM_OUT="${WASM_OUT}"`, `WASM_OPT="${optimize}"`],
       { stdio: "inherit" },
     );
   };
@@ -18,6 +19,7 @@ function zigWasm(optimize: string): Plugin {
     name: "zig-wasm",
     buildStart() {
       this.addWatchFile(WASM_SRC);
+      this.addWatchFile(ZIG_SRC);
       try {
         build();
       } catch (err) {
@@ -27,7 +29,7 @@ function zigWasm(optimize: string): Plugin {
       }
     },
     hotUpdate({ file, server }) {
-      if (file !== WASM_SRC) return;
+      if (file !== WASM_SRC || file !== ZIG_SRC) return;
       try {
         build();
         server.ws.send({ type: "full-reload" });

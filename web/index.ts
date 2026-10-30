@@ -1,49 +1,82 @@
 import wasmUrl from "./game.wasm?url";
-
-/** Pointer into wasm linear memory. */
-type Ptr = number;
+let canvas = document.getElementById("canvas") as HTMLCanvasElement | null;
+if (!canvas) throw new Error("no canvas found");
+let ctx = canvas.getContext("2d");
+if (!ctx) throw new Error("no canvas context found");
 
 /** Exports from web/game.zig. */
 interface GameExports {
   memory: WebAssembly.Memory;
-  StringLen(str: Ptr): number;
-  StringData(str: Ptr): Ptr;
-  allocString(): Ptr;
-  allocUsize(): Ptr;
-  helloWorld(): Ptr;
+  WINDOW_WIDTH: WebAssembly.Global;
+  WINDOW_HEIGHT: WebAssembly.Global;
+  BACKGROUND_COLOR: WebAssembly.Global;
+  init: () => void;
+  update: (dt: number) => void;
+  reset: () => void;
+  render: () => void;
+  killAll: () => void;
+  getScore: () => number;
+  keyPressed: (key: number) => void;
+  keyReleased: (key: number) => void;
 }
-
-/** Mirrors the Zig `String` extern struct: { size: usize, ptr: [*]const u8 }. */
-interface WasmString {
-  size: number;
-  ptr: Ptr;
-}
-
-let exports: GameExports;
 
 const imports: WebAssembly.Imports = {
-  env: {},
+  env: {
+    randomFloatJs: () => Math.random(),
+    drawReactJs: (
+      x: number,
+      y: number,
+      w: number,
+      h: number,
+      r: number,
+      g: number,
+      b: number,
+      a: number,
+    ) => {
+      const red = r.toString(16).padStart(2, "0");
+      const green = g.toString(16).padStart(2, "0");
+      const blue = b.toString(16).padStart(2, "0");
+      const alpha = a.toString(16).padStart(2, "0");
+      ctx.fillStyle = `#${red}${green}${blue}${alpha}`;
+      ctx.fillRect(x, y, w, h);
+    },
+  },
 };
 
-const readString = (structPtr: Ptr): WasmString => {
-  const fields = new Uint32Array(exports.memory.buffer, structPtr, 2);
-  return {
-    size: fields[0],
-    ptr: fields[1],
-  };
-};
+const { instance } = await WebAssembly.instantiateStreaming(fetch(wasmUrl), imports);
+const exports = instance.exports as unknown as GameExports;
 
-const decodeString = (str: WasmString): string => {
-  const bytes = new Uint8Array(exports.memory.buffer, str.ptr, str.size);
-  return new TextDecoder().decode(bytes);
-};
+const view = new DataView(exports.memory.buffer);
+// Exported Zig consts are wasm globals holding the address of the value in memory.
+const WIDTH = view.getUint16(exports.WINDOW_WIDTH.value, true);
+const HEIGHT = view.getUint16(exports.WINDOW_HEIGHT.value, true);
+const BG_COLOR = view.getUint32(exports.BACKGROUND_COLOR.value, true);
 
-const getString = (structPtr: Ptr): string => {
-  return decodeString(readString(structPtr));
-};
+canvas.width = WIDTH;
+canvas.height = HEIGHT;
+exports.init();
 
-WebAssembly.instantiateStreaming(fetch(wasmUrl), imports).then((result) => {
-  exports = result.instance.exports as unknown as GameExports;
-  const ptr = exports.helloWorld();
-  console.log({ ptr, string: getString(ptr) });
+let start: number | null = null;
+let framesId: number | null = null;
+
+function firstFrame(timestamp: number) {
+  start = timestamp;
+  framesId = window.requestAnimationFrame(frames);
+}
+function frames(timestamp: number) {
+  const dt = (timestamp - start!) / 1000;
+  start = timestamp;
+  exports.update(dt);
+  ctx!.fillStyle = `#${BG_COLOR.toString(16).padStart(8, "0")}`;
+  ctx!.fillRect(0, 0, WIDTH, HEIGHT);
+  exports.render();
+  framesId = window.requestAnimationFrame(frames);
+}
+framesId = window.requestAnimationFrame(frames);
+
+document.addEventListener("keydown", (e) => {
+  exports.keyPressed(e.keyCode);
+});
+document.addEventListener("keyup", (e) => {
+  exports.keyReleased(e.keyCode);
 });

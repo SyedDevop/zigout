@@ -11,7 +11,7 @@ pub fn buildWasm(b: *std.Build) void {
     const wasm_exe = b.addExecutable(.{
         .name = "zbreak-wasm",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("src/Game.zig"),
+            .root_source_file = b.path("src/wasm.zig"),
             .target = target,
             .optimize = .ReleaseSmall,
         }),

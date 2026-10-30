@@ -1,8 +1,8 @@
-pub const FPS = 500;
-pub const WINDOW_WIDTH = 1600;
-pub const WINDOW_HEIGHT = 900;
+pub export const FPS: u16 = 500;
+pub export const WINDOW_WIDTH: u16 = 1600;
+pub export const WINDOW_HEIGHT: u16 = 900;
 pub const PAUSE_TEXT_FS: u8 = 64;
-pub const BACKGROUND_COLOR = 0x181818FF;
+pub export const BACKGROUND_COLOR: u32 = 0x181818FF;
 pub const PROJ_SIZE: f32 = 25 * 0.80;
 pub const PROJ_SPEED: f32 = 350;
 pub const PROJ_COLOR = 0xFFFFFFFF;

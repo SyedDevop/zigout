@@ -14,6 +14,7 @@ const StateKind = object.StateKind;
 pub const DrawReactFn = fn (react: object.Rectangle, color: object.Color) void;
 pub const RandomFloatFn = fn () f32;
 pub const DrawTextFn = fn (text: []const u8, posX: i32, posY: i32, fontSize: i32, color: object.Color) void;
+pub const KeyEventFn = fn (key: u8) void;
 pub const InitConfig = struct {
     drawReact: *const DrawReactFn,
     //drawText: *const DrawTextFn,
@@ -45,6 +46,43 @@ var drawReact: *const DrawReactFn = undefined;
 var randomFloat: *const RandomFloatFn = undefined;
 // @section:State::end
 
+pub export fn keyPressed(key: u8) void {
+    switch (key) {
+        'A' => {
+            bar.dx -= 1;
+            left = true;
+        },
+        'D' => {
+            bar.dx += 1;
+            right = true;
+        },
+        ' ' => {
+            switch (state) {
+                .PLAY => pause = !pause,
+                .READY => {
+                    const driction: f16 = if (left) 1 else -1;
+                    proj.dx = driction;
+                    state = .PLAY;
+                },
+                else => {},
+            }
+        },
+        else => {},
+    }
+}
+pub export fn keyReleased(key: u8) void {
+    switch (key) {
+        // 'A' => {
+        //     bar.dx += 1;
+        //     left = false;
+        // },
+        // 'D' => {
+        //     bar.dx -= 1;
+        //     right = false;
+        // },
+        else => {},
+    }
+}
 pub fn init(init_config: InitConfig) void {
     drawReact = init_config.drawReact;
     //drawText = init_config.drawText;

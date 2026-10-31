@@ -9,28 +9,11 @@ const Zir = std.zig.Zir;
 const ArrayTypes = std.ArrayList(TypeKind);
 const ArrayString = std.ArrayList(u8);
 
-fn isDigit(dig: []const u8) bool {
-    for (dig) |d| {
-        if (!std.ascii.isDigit(d)) return false;
-    }
-    return true;
-}
-fn isNumberType(integer_sign: u8, integer_bit: []const u8) bool {
-    if (integer_sign != 'u' and integer_sign != 'i' and integer_sign != 'f') return false;
-    return isDigit(integer_bit);
-}
-fn isBigNumberType(integer_sign: u8, integer_bit: []const u8) bool {
-    if (integer_sign != 'u' and integer_sign != 'i') return false;
-    const num = std.fmt.parseInt(usize, integer_bit, 10) catch return false;
-    if (num < 64) return false;
-    return true;
-}
-fn isType(a: []const u8, b: []const u8) bool {
-    const at = std.mem.trim(u8, a, " \n");
-    const bt = std.mem.trim(u8, b, " \n");
-    return std.mem.eql(u8, at, bt);
-}
-var type_kind_buffer: [16]TypeKind = undefined;
+const CodeBase = struct {
+    path: []const u8,
+    source: [:0]const u8,
+};
+
 pub const TypeKind = union(enum) {
     unknown,
     void,
@@ -78,21 +61,6 @@ fn classifyType(tree: *const Ast, node: Ast.Node.Index, file_path: []const u8) T
     }
 }
 
-fn isExportOrExtern(ast: *const Ast, token: ?Ast.TokenIndex) bool {
-    return if (token) |t| {
-        const tag = ast.tokenTag(t);
-        return tag == .keyword_export or tag == .keyword_extern;
-    } else false;
-}
-
-fn isExtern(ast: *const Ast, token: ?Ast.TokenIndex) bool {
-    return if (token) |t| {
-        const tag = ast.tokenTag(t);
-        return tag == .keyword_extern;
-    } else false;
-}
-
-/// Caller owns the returned slice.
 pub fn findDeclarations(
     allocator: std.mem.Allocator,
     ast: *const Ast,
@@ -201,31 +169,10 @@ pub fn findDeclarations(
     return declarations;
 }
 
-fn myLog(
-    path: []const u8,
-    ast: *const Ast,
-    node: Ast.Node.Index,
-    level: enum { err, war },
-    comptime fmt: []const u8,
-    args: anytype,
-) void {
-    const main_tok = ast.firstToken(node);
-    const loc = ast.tokenLocation(0, main_tok);
-    const PRINT_FMT = "{s}:{d}:{d} " ++ fmt;
-    const PRINT_ARG = .{ path, loc.line + 1, loc.column } ++ args;
-    if (level == .err) {
-        std.log.err(PRINT_FMT, PRINT_ARG);
-    } else std.log.warn(PRINT_FMT, PRINT_ARG);
-}
-
-const CodeBase = struct {
-    path: []const u8,
-    source: [:0]const u8,
-};
 pub fn main(init: std.process.Init) !void {
     const allocator = init.gpa;
     const io = init.io;
-
+    const out_file = "./web/wasm.ts";
     var write_buffer: [1024]u8 = undefined;
     var stdout_w = Io.File.stdout().writer(io, &write_buffer);
     var stdout = &stdout_w.interface;
@@ -291,7 +238,7 @@ pub fn main(init: std.process.Init) !void {
 
         const found = try findDeclarations(allocator, &tree, cb.path, &exports_array, &externs_array);
         const root = tree.rootDecls();
-        try stdout.print("Found [{d:0>2}/{d:0>2}] declarations in {s}\n", .{ found, root.len, cb.path });
+        try stdout.print("{s: <30} [{d:0>2}/{d:0>2}] declarations\n", .{ cb.path, found, root.len });
     }
 
     var exports = try exports_array.toOwnedSlice(allocator);
@@ -325,7 +272,7 @@ pub fn main(init: std.process.Init) !void {
         externs = try externs_array.toOwnedSlice(allocator);
     }
 
-    const ts_declaration = try cwd.createFile(init.io, "./web/wasm.ts", .{ .truncate = true });
+    const ts_declaration = try cwd.createFile(init.io, out_file, .{ .truncate = true });
     defer ts_declaration.close(init.io);
     var file_write_buf: [1024]u8 = undefined;
     var ts_writer = ts_declaration.writer(init.io, &file_write_buf);
@@ -354,9 +301,66 @@ pub fn main(init: std.process.Init) !void {
     );
     try ts_writer.flush();
 
+    try stdout.print("\n\n", .{});
+    try stdout.print("Generated: {s}\n", .{out_file});
     try stdout.flush();
 }
 
+fn isDigit(dig: []const u8) bool {
+    for (dig) |d| {
+        if (!std.ascii.isDigit(d)) return false;
+    }
+    return true;
+}
+
+fn isNumberType(integer_sign: u8, integer_bit: []const u8) bool {
+    if (integer_sign != 'u' and integer_sign != 'i' and integer_sign != 'f') return false;
+    return isDigit(integer_bit);
+}
+
+fn isBigNumberType(integer_sign: u8, integer_bit: []const u8) bool {
+    if (integer_sign != 'u' and integer_sign != 'i') return false;
+    const num = std.fmt.parseInt(usize, integer_bit, 10) catch return false;
+    if (num < 64) return false;
+    return true;
+}
+
+fn isType(a: []const u8, b: []const u8) bool {
+    const at = std.mem.trim(u8, a, " \n");
+    const bt = std.mem.trim(u8, b, " \n");
+    return std.mem.eql(u8, at, bt);
+}
+
+fn isExportOrExtern(ast: *const Ast, token: ?Ast.TokenIndex) bool {
+    return if (token) |t| {
+        const tag = ast.tokenTag(t);
+        return tag == .keyword_export or tag == .keyword_extern;
+    } else false;
+}
+
+fn isExtern(ast: *const Ast, token: ?Ast.TokenIndex) bool {
+    return if (token) |t| {
+        const tag = ast.tokenTag(t);
+        return tag == .keyword_extern;
+    } else false;
+}
+
+fn myLog(
+    path: []const u8,
+    ast: *const Ast,
+    node: Ast.Node.Index,
+    level: enum { err, war },
+    comptime fmt: []const u8,
+    args: anytype,
+) void {
+    const main_tok = ast.firstToken(node);
+    const loc = ast.tokenLocation(0, main_tok);
+    const PRINT_FMT = "{s}:{d}:{d} " ++ fmt;
+    const PRINT_ARG = .{ path, loc.line + 1, loc.column } ++ args;
+    if (level == .err) {
+        std.log.err(PRINT_FMT, PRINT_ARG);
+    } else std.log.warn(PRINT_FMT, PRINT_ARG);
+}
 const FormatAstError = struct {
     parse_error: Ast.Error,
     tree: *const Ast,

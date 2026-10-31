@@ -31,7 +31,7 @@ pub const PARTICLE_BURST_HIT_COUNT = 20;
 pub const PARTICLE_BURST_DEATH_COUNT = 50;
 
 // Constant text to display
-pub const PAUSE_T = "Game Is Paused";
+pub export const PAUSE_T = "Game Is Paused";
 pub const RESTART_T = "Press r to restart";
 pub const OYL_T = "Game Over You Lose";
 pub const WON_T = "Game Won";

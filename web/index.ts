@@ -1,27 +1,13 @@
 import wasmUrl from "game.wasm?url";
+import { loadWasm, type WasmImports } from "./wasm.ts";
+
 const canvas = document.getElementById("canvas") as HTMLCanvasElement | null;
 const fpsText = document.getElementById("fps-value") as HTMLSpanElement | null;
 if (!canvas) throw new Error("no canvas found");
 const ctx = canvas.getContext("2d");
 if (!ctx) throw new Error("no canvas context found");
 
-/** Exports from web/game.zig. */
-interface GameExports {
-  memory: WebAssembly.Memory;
-  WINDOW_WIDTH: WebAssembly.Global;
-  WINDOW_HEIGHT: WebAssembly.Global;
-  BACKGROUND_COLOR: WebAssembly.Global;
-  init: () => void;
-  update: (dt: number) => void;
-  reset: () => void;
-  render: () => void;
-  killAll: () => void;
-  getScore: () => number;
-  keyPressed: (key: number) => void;
-  keyReleased: (key: number) => void;
-}
-
-const imports: WebAssembly.Imports = {
+const imports = {
   env: {
     randomFloatJs: () => Math.random(),
     drawReactJs: (
@@ -42,16 +28,15 @@ const imports: WebAssembly.Imports = {
       ctx.fillRect(x, y, w, h);
     },
   },
-};
+} satisfies WasmImports;
 
-const { instance } = await WebAssembly.instantiateStreaming(fetch(wasmUrl), imports);
-const exports = instance.exports as unknown as GameExports;
-
+const { instance } = await loadWasm(wasmUrl, imports);
+const exports = instance.exports;
 const view = new DataView(exports.memory.buffer);
 // Exported Zig consts are wasm globals holding the address of the value in memory.
-const WIDTH = view.getUint16(exports.WINDOW_WIDTH.value, true);
-const HEIGHT = view.getUint16(exports.WINDOW_HEIGHT.value, true);
-const BG_COLOR = view.getUint32(exports.BACKGROUND_COLOR.value, true);
+const WIDTH = view.getUint16(exports.WINDOW_WIDTH, true);
+const HEIGHT = view.getUint16(exports.WINDOW_HEIGHT, true);
+const BG_COLOR = view.getUint32(exports.BACKGROUND_COLOR, true);
 
 canvas.width = WIDTH;
 canvas.height = HEIGHT;

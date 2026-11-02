@@ -10,6 +10,9 @@ const MyColor = object.MyColor;
 const Entity = object.Entity;
 const StateKind = object.StateKind;
 
+const Vector2 = object.Vector2;
+const Rectangle = object.Rectangle;
+
 //extern fn drawReact(react: object.Rectangle, color: object.Color) void;
 pub const DrawReactFn = fn (react: object.Rectangle, color: object.Color) void;
 pub const RandomFloatFn = fn () f32;
@@ -49,11 +52,11 @@ var randomFloat: *const RandomFloatFn = undefined;
 pub export fn keyPressed(key: u8) void {
     switch (key) {
         'A' => {
-            bar.dx -= 1;
+            bar.velocity.x -= 1;
             left = true;
         },
         'D' => {
-            bar.dx += 1;
+            bar.velocity.x += 1;
             right = true;
         },
         ' ' => {
@@ -61,7 +64,7 @@ pub export fn keyPressed(key: u8) void {
                 .PLAY => pause = !pause,
                 .READY => {
                     const driction: f16 = if (left) 1 else -1;
-                    proj.dx = driction;
+                    proj.velocity.x = driction;
                     state = .PLAY;
                 },
                 else => {},
@@ -106,12 +109,17 @@ pub fn init_targets() void {
             const g2 = MyColor.lerp(green, blue, (t - level) / (1 - level));
             const linear_color = if (t < level) g1 else g2;
             const color = MyColor.linear_to_srgb(linear_color);
-            targets_pool[row * config.TARGET_COLS + col] = Entity{ .color = color, .react = .{
-                .x = config.TARGET_GRID_X + (config.TARGET_WIDTH + config.TARGET_PADDING_X) * @as(f32, @floatFromInt(col)),
-                .y = config.TARGET_GRID_Y + config.TARGET_PADDING_Y * @as(f32, @floatFromInt(row)),
-                .width = config.TARGET_WIDTH,
-                .height = config.TARGET_HEIGHT,
-            } };
+            targets_pool[row * config.TARGET_COLS + col] = Entity{
+                .color = color,
+                .position = .{
+                    .x = config.TARGET_GRID_X + (config.TARGET_WIDTH + config.TARGET_PADDING_X) * @as(f32, @floatFromInt(col)),
+                    .y = config.TARGET_GRID_Y + config.TARGET_PADDING_Y * @as(f32, @floatFromInt(row)),
+                },
+                .size = .{
+                    .x = config.TARGET_WIDTH,
+                    .y = config.TARGET_HEIGHT,
+                },
+            };
         }
     }
 }
@@ -119,11 +127,13 @@ pub fn init_targets() void {
 pub fn init_bar() void {
     bar = .{
         .color = .red,
-        .react = .{
+        .position = .{
             .x = config.WINDOW_WIDTH / 2 - config.BAR_LEN / 2,
             .y = config.BAR_Y - config.BAR_THICKNESS / 2,
-            .width = config.BAR_LEN,
-            .height = config.BAR_THICKNESS,
+        },
+        .size = .{
+            .x = config.BAR_LEN,
+            .y = config.BAR_THICKNESS,
         },
     };
 }
@@ -132,14 +142,15 @@ pub fn init_projectile() void {
     const life_size = config.BAR_THICKNESS;
     for (&life_pool, 0..) |*life_, i| {
         life_.* = .{
-            .dx = 1,
-            .dy = 1,
+            .velocity = .one(),
             .color = .white,
-            .react = .{
+            .position = .{
                 .x = 10 + (life_size + 10) * @as(f32, @floatFromInt(i)),
                 .y = 40,
-                .width = life_size,
-                .height = life_size,
+            },
+            .size = .{
+                .x = life_size,
+                .y = life_size,
             },
         };
     }
@@ -173,36 +184,36 @@ pub fn reset() void {
 }
 
 fn horz_collision(dt: f32) void {
-    const proj_nx: f32 = proj.react.x + proj.dx * config.PROJ_SPEED * dt;
+    const proj_nx: f32 = proj.position.x + proj.velocity.x * config.PROJ_SPEED * dt;
     const proj_collided_with_bar = proj.overlaps(bar, proj_nx, null);
     if (proj_nx < 0 or proj_nx + config.PROJ_SIZE > config.WINDOW_WIDTH or proj_collided_with_bar) {
-        proj.dx *= -1;
+        proj.velocity.x *= -1;
         return;
     }
-    if (proj_collided_with_bar) particleBurst(bar.react, bar.color, config.PARTICLE_BURST_HIT_COUNT);
+    if (proj_collided_with_bar) particleBurst(bar.rect(), bar.color, config.PARTICLE_BURST_HIT_COUNT);
     for (targets_pool[0..]) |*it| {
         if (!it.dead and proj.overlaps(it.*, proj_nx, null)) {
             //rl.playSound(collid_sound);
             score += 1;
             it.dead = true;
-            proj.dx *= -1;
-            particleBurst(proj.react, it.color, config.PARTICLE_BURST_HIT_COUNT);
+            proj.velocity.x *= -1;
+            particleBurst(proj.rect(), it.color, config.PARTICLE_BURST_HIT_COUNT);
             return;
         }
     }
-    proj.react.x = proj_nx;
+    proj.position.x = proj_nx;
 }
 
 fn vert_collision(dt: f32) void {
-    const proj_ny: f32 = proj.react.y + proj.dy * config.PROJ_SPEED * dt;
+    const proj_ny: f32 = proj.position.y + proj.velocity.y * config.PROJ_SPEED * dt;
     if (proj_ny < 0) {
-        proj.dy *= -1;
+        proj.velocity.y *= -1;
         return;
     }
     if (proj_ny + config.PROJ_SIZE > config.WINDOW_HEIGHT) {
         if (god_mode) {
-            proj.dy += 1.005;
-            proj.dy *= -1;
+            proj.velocity.y += 1.005;
+            proj.velocity.y *= -1;
             return;
         }
         //rl.playSound(death_sound);
@@ -211,9 +222,9 @@ fn vert_collision(dt: f32) void {
         return;
     }
     if (proj.overlaps(bar, null, proj_ny)) {
-        if (bar.dx != 0) proj.dx = bar.dx;
-        proj.dy *= -1;
-        particleBurst(bar.react, bar.color, config.PARTICLE_BURST_HIT_COUNT);
+        if (bar.velocity.x != 0) proj.velocity.x = bar.velocity.x;
+        proj.velocity.y *= -1;
+        particleBurst(bar.rect(), bar.color, config.PARTICLE_BURST_HIT_COUNT);
         return;
     }
     for (targets_pool[0..]) |*it| {
@@ -221,22 +232,22 @@ fn vert_collision(dt: f32) void {
             //rl.playSound(collid_sound);
             score += 1;
             it.dead = true;
-            proj.dy *= -1;
-            particleBurst(proj.react, it.color, config.PARTICLE_BURST_HIT_COUNT);
+            proj.velocity.y *= -1;
+            particleBurst(proj.rect(), it.color, config.PARTICLE_BURST_HIT_COUNT);
             return;
         }
     }
-    proj.react.y = proj_ny;
+    proj.position.y = proj_ny;
 }
 
 fn bar_collision(dt: f32) void {
     const bar_nx: f32 = math.clamp(
-        bar.react.x + bar.dx * config.BAR_SPEED * dt,
+        bar.position.x + bar.velocity.x * config.BAR_SPEED * dt,
         0,
         config.WINDOW_WIDTH - config.BAR_LEN,
     );
     if (bar.overlaps(proj, bar_nx, null)) return;
-    bar.react.x = bar_nx;
+    bar.position.x = bar_nx;
 }
 
 fn life_collision(dt: f32) void {
@@ -248,15 +259,15 @@ fn life_collision(dt: f32) void {
     const barPos = bar.getCenter();
     const projPos = proj.getCenter();
     const dist = barPos.subtract(projPos).normalize();
-    const proj_nx = proj.react.x + dist.x * (config.PROJ_SPEED * 4) * dt;
-    const proj_ny = proj.react.y + dist.y * (config.PROJ_SPEED * 4) * dt;
+    const proj_nx = proj.position.x + dist.x * (config.PROJ_SPEED * 4) * dt;
+    const proj_ny = proj.position.y + dist.y * (config.PROJ_SPEED * 4) * dt;
     if (proj.overlaps(bar, proj_nx, proj_ny)) {
         state = .READY;
-        particleBurst(bar.react, bar.color, config.PARTICLE_BURST_HIT_COUNT);
+        particleBurst(bar.rect(), bar.color, config.PARTICLE_BURST_HIT_COUNT);
         return;
     }
-    proj.react.x = proj_nx;
-    proj.react.y = proj_ny;
+    proj.position.x = proj_nx;
+    proj.position.y = proj_ny;
     return;
 }
 
@@ -276,7 +287,7 @@ pub fn update(dt: f32) void {
     if (life <= 0) {
         state = .GAMEOVER;
         //rl.playSound(lose_sound);
-        particleBurst(bar.react, bar.color, config.PARTICLE_BURST_DEATH_COUNT);
+        particleBurst(bar.rect(), bar.color, config.PARTICLE_BURST_DEATH_COUNT);
         bar.color.a = 0;
         return;
     }
@@ -294,7 +305,7 @@ pub fn update(dt: f32) void {
 
         else => {
             if (proj.overlaps(bar, null, null)) {
-                proj.react.y = config.BAR_Y - config.BAR_THICKNESS / 2 - config.PROJ_SIZE - 1.0;
+                proj.position.y = config.BAR_Y - config.BAR_THICKNESS / 2 - config.PROJ_SIZE - 1.0;
                 return;
             }
             horz_collision(dt);
@@ -304,16 +315,16 @@ pub fn update(dt: f32) void {
 }
 
 pub fn render() void {
-    drawReact(bar.react, bar.color);
-    drawReact(proj.react, proj.color);
+    drawReact(bar.rect(), bar.color);
+    drawReact(proj.rect(), proj.color);
     for (life_pool) |lproj| {
         if (!lproj.dead) {
-            drawReact(lproj.react, lproj.color);
+            drawReact(lproj.rect(), lproj.color);
         }
     }
     for (targets_pool) |target| {
         if (!target.dead) {
-            drawReact(target.react, target.color);
+            drawReact(target.rect(), target.color);
         }
     }
     for (particle_pool) |particle| {
@@ -345,6 +356,7 @@ fn particleBurst(rect: object.Rectangle, color: object.Color, count: u8) void {
         emitParticle(pos, color);
     }
 }
+
 fn emitParticle(pos: object.Vector2, color: object.Color) void {
     for (&particle_pool) |*par| {
         if (par.isAlive()) continue;

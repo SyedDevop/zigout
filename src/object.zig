@@ -9,6 +9,15 @@ pub const Vector2 = struct {
     pub fn zero() Vector2 {
         return .{ .x = 0, .y = 0 };
     }
+
+    pub fn one() Vector2 {
+        return .{ .x = 1, .y = 1 };
+    }
+
+    pub fn splat(v: f32) Vector2 {
+        return .{ .x = v, .y = v };
+    }
+
     pub fn subtract(v1: Vector2, v2: Vector2) Vector2 {
         return .{ .x = v1.x - v2.x, .y = v1.y - v2.y };
     }
@@ -56,8 +65,17 @@ pub const Rectangle = extern struct {
     y: f32,
     width: f32,
     height: f32,
+
     pub fn init(x: f32, y: f32, width: f32, height: f32) Rectangle {
         return Rectangle{ .x = x, .y = y, .width = width, .height = height };
+    }
+
+    pub fn makeV(position: Vector2, size: Vector2) Rectangle {
+        return .{ .x = position.x, .y = position.y, .width = size.x, .height = size.y };
+    }
+
+    pub fn overlaps(rect1: Rectangle, rect2: Rectangle) bool {
+        return checkCollisionRecs(rect1, rect2);
     }
 };
 
@@ -78,6 +96,7 @@ pub const Color = extern struct {
     }
 };
 
+//TODO: move this to `Rectangle` struct it self
 // Check collision between two rectangles
 pub fn checkCollisionRecs(rec1: Rectangle, rec2: Rectangle) bool {
     var collision: bool = false;
@@ -89,12 +108,16 @@ pub fn checkCollisionRecs(rec1: Rectangle, rec2: Rectangle) bool {
 }
 
 pub const Entity = struct {
-    dx: f32 = 0,
-    dy: f32 = 0,
     dead: bool = false,
     color: Color,
-    react: Rectangle,
+    position: Vector2,
+    size: Vector2,
+    velocity: Vector2 = .zero(),
     const Self = @This();
+
+    pub fn rect(self: Self) Rectangle {
+        return Rectangle.makeV(self.position, self.size);
+    }
 
     /// Checks if this entity's rectangle overlaps with another entity's rectangle.
     /// Optionally, `newX` and `newY` can be used to temporarily set the `x` and `y`
@@ -106,20 +129,20 @@ pub const Entity = struct {
     /// - `newY`: (Optional) Temporary `y` position for self entity.
     /// - Returns `true` if the rectangles overlap, otherwise `false`.
     pub fn overlaps(self: Self, otherEntity: Entity, newX: ?f32, newY: ?f32) bool {
-        var updatedRect = self.react;
+        var updatedRect = self.rect();
         if (newY) |y| updatedRect.y = y;
         if (newX) |x| updatedRect.x = x;
-        return checkCollisionRecs(updatedRect, otherEntity.react);
+        return checkCollisionRecs(updatedRect, otherEntity.rect());
     }
 
     /// Returns the x-coordinate of the center of the [Entity].
     pub inline fn getCenterX(self: *const Self) f32 {
-        return self.react.x + self.react.width / 2;
+        return self.position.x + self.size.x / 2;
     }
 
     /// Returns the y-coordinate of the center of the [Entity].
     pub inline fn getCenterY(self: *const Self) f32 {
-        return self.react.y + self.react.height / 2;
+        return self.position.y + self.size.y / 2;
     }
 
     /// Returns the Coordinate of the center of the [Entity].
@@ -128,7 +151,7 @@ pub const Entity = struct {
     }
     /// Sets the x-coordinate of the center of the rectangle.
     pub fn setCenterX(self: *Self, x: f32) void {
-        self.react.x = x - self.react.width / 2;
+        self.position.x = x - self.size.x / 2;
     }
 };
 

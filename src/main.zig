@@ -59,13 +59,13 @@ pub fn main(init: std.process.Init) !void {
 
     while (!rl.windowShouldClose()) { // Detect window close button or ESC key
         const dt: f32 = rl.getFrameTime();
-        Game.bar.dx = 0;
+        Game.bar.velocity = .zero();
         if (rl.isKeyDown(.a) or rl.isKeyDown(.left)) {
-            Game.bar.dx -= 1;
+            Game.bar.velocity.x -= 1;
             Game.left = true;
         }
         if (rl.isKeyDown(.d) or rl.isKeyDown(.right)) {
-            Game.bar.dx += 1;
+            Game.bar.velocity.x += 1;
             Game.right = true;
         }
         if (rl.isKeyPressed(.k)) Game.killAll();
@@ -77,7 +77,7 @@ pub fn main(init: std.process.Init) !void {
                 .PLAY => Game.pause = !Game.pause,
                 .READY => {
                     const driction: f16 = if (Game.left) 1 else -1;
-                    Game.proj.dx = driction;
+                    Game.proj.velocity.x = driction;
                     Game.state = .PLAY;
                 },
                 else => {},

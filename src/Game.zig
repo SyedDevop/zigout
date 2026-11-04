@@ -28,10 +28,10 @@ pub const InitConfig = struct {
 pub var particle_pool: [255]Particle = @splat(Particle.default);
 pub var targets_pool: [config.TOTAL_ENTITY]Entity = undefined;
 pub var life_pool: [config.LIVES]Entity = undefined;
-pub var proj: Entity = undefined;
-
-pub var alive_particles: usize = undefined;
 pub var life: u8 = config.LIVES;
+
+pub var proj: Entity = undefined;
+pub var alive_particles: usize = undefined;
 pub var emitter_pried: f32 = 5;
 pub var score: u32 = 0;
 pub var pause = false;
@@ -50,21 +50,22 @@ var randomFloat: *const RandomFloatFn = undefined;
 // @section:State::end
 
 pub export fn keyPressed(key: u8) void {
+    std.log.debug("Got this keyCode: {d} key: `{c}`", .{ key, key });
     switch (key) {
-        'A' => {
-            bar.velocity.x -= 1;
+        'A', 'a', 37 => {
             left = true;
+            if (state == .START) state = .ATTACH;
         },
-        'D' => {
-            bar.velocity.x += 1;
+        'D', 'd', 38 => {
             right = true;
+            if (state == .START) state = .ATTACH;
         },
         ' ' => {
             switch (state) {
                 .PLAY => pause = !pause,
                 .READY => {
-                    const driction: f16 = if (left) 1 else -1;
-                    proj.velocity.x = driction;
+                    // const driction: f16 = if (left) 1 else -1;
+                    // proj.velocity.x = driction;
                     state = .PLAY;
                 },
                 else => {},
@@ -75,14 +76,12 @@ pub export fn keyPressed(key: u8) void {
 }
 pub export fn keyReleased(key: u8) void {
     switch (key) {
-        // 'A' => {
-        //     bar.dx += 1;
-        //     left = false;
-        // },
-        // 'D' => {
-        //     bar.dx -= 1;
-        //     right = false;
-        // },
+        37, 'A', 'a' => {
+            left = false;
+        },
+        38, 'D', 'd' => {
+            right = false;
+        },
         else => {},
     }
 }
@@ -138,6 +137,7 @@ pub fn init_bar() void {
     };
 }
 
+//TODO: It will be cool when game is restated. Rise from the fallen position.
 pub fn init_projectile() void {
     const life_size = config.BAR_THICKNESS;
     for (&life_pool, 0..) |*life_, i| {
@@ -181,6 +181,73 @@ pub fn reset() void {
     init_bar();
     reset_target();
     reset_lifes();
+}
+
+pub const Collision = enum(u32) {
+    no = 0,
+    border_left,
+    border_right,
+    border_top,
+    border_bottom,
+    bar,
+    target,
+    _,
+
+    pub fn add(collision: Collision, value: u32) Collision {
+        const ci = @backingInt(collision);
+        return @fromBackingInt(@intCast(ci + value));
+    }
+};
+fn horz_collision2(position: *Vector2, velocity: *Vector2, size: Vector2, dt: f32) Collision {
+    const nx = position.x + velocity.x * dt;
+    if (nx < 0) {
+        velocity.x *= -1;
+        return .border_left;
+    }
+
+    if (nx + size.x > config.WINDOW_WIDTH) {
+        velocity.x *= -1;
+        return .border_right;
+    }
+    const new_r = Rectangle.makeV(.{ .x = nx, .y = position.y }, size);
+    if (new_r.overlaps(bar.rect())) {
+        velocity.x *= -1;
+        return .bar;
+    }
+    for (&targets_pool, 0..) |*it, i| {
+        if (!it.dead and new_r.overlaps(it.rect())) {
+            velocity.x *= -1;
+            return Collision.target.add(@intCast(i + 1));
+        }
+    }
+    position.x = nx;
+    return .no;
+}
+
+fn vert_collision2(position: *Vector2, velocity: *Vector2, size: Vector2, dt: f32) Collision {
+    const ny = position.y + velocity.y * dt;
+    if (ny < 0) {
+        position.y *= -1;
+        return .border_top;
+    }
+    if (ny + size.x > config.WINDOW_HEIGHT) {
+        position.y *= -1;
+        return .border_bottom;
+    }
+    const new_r = Rectangle.makeV(.{ .x = position.x, .y = ny }, size);
+    if (new_r.overlaps(bar.rect())) {
+        velocity.y *= -1;
+        return .bar;
+    }
+
+    for (&targets_pool, 0..) |*it, i| {
+        if (!it.dead and new_r.overlaps(it.rect())) {
+            velocity.y *= -1;
+            return Collision.target.add(@intCast(i + 1));
+        }
+    }
+    position.y = ny;
+    return .no;
 }
 
 fn horz_collision(dt: f32) void {
@@ -240,7 +307,7 @@ fn vert_collision(dt: f32) void {
     proj.position.y = proj_ny;
 }
 
-fn bar_collision(dt: f32) void {
+fn barCollision(dt: f32) void {
     const bar_nx: f32 = math.clamp(
         bar.position.x + bar.velocity.x * config.BAR_SPEED * dt,
         0,
@@ -249,13 +316,32 @@ fn bar_collision(dt: f32) void {
     if (bar.overlaps(proj, bar_nx, null)) return;
     bar.position.x = bar_nx;
 }
+fn attachTo(dt: f32, src: *Entity, dest: *Entity) bool {
+    var src_pos = src.getCenter();
+    var best_pos = dest.getCenter();
 
-fn life_collision(dt: f32) void {
-    const currProj = life_pool[life - 1];
-    if (!currProj.dead) {
-        life_pool[life - 1].dead = true;
-        proj = get_life();
+    var attach_velocity = src.velocity.length();
+    src.*.velocity = best_pos.subtract(src_pos);
+    const len = src.velocity.length();
+    if (len > 0) {
+        attach_velocity += 3500.0 * dt;
+        src.*.velocity = src.velocity.divide(len);
+        src.*.velocity = src.velocity.scale(attach_velocity);
     }
+    //src.position += <<velocity*dt;
+    src.*.position = src.velocity.scale(dt).add(src_pos);
+
+    src_pos = src.getCenter();
+    best_pos = dest.getCenter();
+
+    return src_pos.subtract(best_pos).length() < 40.0;
+}
+fn lifeCollision(dt: f32) void {
+    // const currProj = life_pool[life - 1];
+    // if (!currProj.dead) {
+    //     life_pool[life - 1].dead = true;
+    //     proj = get_life();
+    // }
     const barPos = bar.getCenter();
     const projPos = proj.getCenter();
     const dist = barPos.subtract(projPos).normalize();
@@ -271,6 +357,12 @@ fn life_collision(dt: f32) void {
     return;
 }
 
+pub fn updateBar(dt: f32) void {
+    bar.velocity = .zero();
+    if (left) bar.velocity.x += -1;
+    if (right) bar.velocity.x += 1;
+    barCollision(dt);
+}
 pub fn updateParticle(dt: f32) void {
     alive_particles = 0;
     for (&particle_pool) |*par| {
@@ -281,36 +373,102 @@ pub fn updateParticle(dt: f32) void {
     }
 }
 
-pub fn update(dt: f32) void {
-    updateParticle(dt);
-    if (pause) return;
-    if (life <= 0) {
-        state = .GAMEOVER;
-        //rl.playSound(lose_sound);
-        particleBurst(bar.rect(), bar.color, config.PARTICLE_BURST_DEATH_COUNT);
-        bar.color.a = 0;
-        return;
+fn projCollision(c: Collision) void {
+    std.log.info("collision: {t}", .{c});
+    switch (c) {
+        .bar => {
+            if (bar.velocity.x != 0) {
+                proj.velocity.x = bar.velocity.x * config.PROJ_SPEED;
+            } else {
+                // sign :: inline (x: float) -> float {
+                //     return xx (-cast(int)(x<0) + cast(int)(x>0));
+                // }
+                proj.velocity.x = math.sign(proj.velocity.x) * config.PROJ_SPEED * config.ANGLE_FACTOR;
+            }
+        },
+        .border_bottom => @panic("TODO: projCollision:bar not implemented"),
+        _ => |n| {
+            const ci: usize = @backingInt(Collision.target);
+            const ni: usize = @backingInt(n);
+            var target = &targets_pool[ni - ci];
+            target.dead = !target.dead;
+        },
+        .target => unreachable,
+        .no, .border_left, .border_top, .border_right => {},
     }
-    if (score >= config.TARGET_ROWS * config.TARGET_COLS) {
+}
+
+fn targetHit(target: *Entity) void {
+    if (target.dead) return;
+    particleBurst(target.react, target.color, config.PARTICLE_BURST_HIT_COUNT);
+    target.*.dead = true;
+    score += 1;
+    if (allTargetDied()) {
         state = .VICTORY;
-        //rl.playSound(win_sound);
-        return;
     }
-    bar_collision(dt);
+}
+
+pub fn update(dt: f32) void {
+    if (pause) return;
+    updateBar(dt);
+    updateParticle(dt);
+    // if (life <= 0) {
+    //     state = .GAMEOVER;
+    //     //rl.playSound(lose_sound);
+    //     particleBurst(bar.rect(), bar.color, config.PARTICLE_BURST_DEATH_COUNT);
+    //     bar.color.a = 0;
+    //     return;
+    // }
+    // if (score >= config.TARGET_ROWS * config.TARGET_COLS) {
+    //     state = .VICTORY;
+    //     //rl.playSound(win_sound);
+    //     return;
+    // }
+    // bar_collision(dt);
 
     switch (state) {
-        .START => state = .ATTACH,
-        .ATTACH => life_collision(dt),
-        .READY => proj.setCenterX(bar.getCenterX()), // this anchor the projectile to bar till .PLAY state
-
-        else => {
-            if (proj.overlaps(bar, null, null)) {
-                proj.position.y = config.BAR_Y - config.BAR_THICKNESS / 2 - config.PROJ_SIZE - 1.0;
-                return;
-            }
-            horz_collision(dt);
-            vert_collision(dt);
+        .START => {
+            state = .ATTACH;
         },
+        // This process need to run till the proj has reached to the bar
+        .ATTACH => {
+            // lifeCollision(dt);
+            //  Think of better way to do this
+            {
+                var currProj = &life_pool[life -| 1];
+                if (!currProj.dead) {
+                    currProj.dead = true;
+                    proj = currProj.*;
+                }
+            }
+            if (attachTo(dt, &proj, &bar)) {
+                particleBurst(bar.rect(), bar.color, config.PARTICLE_BURST_HIT_COUNT);
+                state = .READY;
+                //rl.playSound(attach_sound);
+            }
+        },
+        .READY => {
+            // this anchor the projectile to bar till .PLAY state
+            proj.setCenterX(bar.getCenterX());
+        },
+        .PLAY => {
+            projCollision(horz_collision2(&proj.position, &proj.velocity, proj.size, dt));
+            projCollision(vert_collision2(&proj.position, &proj.velocity, proj.size, dt));
+        },
+        .GAMEOVER => @panic("TODO: Game.update:GAMEOVER not implemented"),
+        .RESTART => @panic("TODO: Game.update:RESTART not implemented"),
+        .RESTORE_TARGETS => @panic("TODO: Game.update:RESTORE_TARGETS not implemented"),
+        .VICTORY => @panic("TODO: Game.update:VICTORY not implemented"),
+        // else => {
+        // projCollision(horz_collision2(&proj.position, &proj.velocity, proj.size, dt));
+        // projCollision(vert_collision2(&proj.position, &proj.velocity, proj.size, dt));
+        // if (proj.overlaps(bar, null, null)) {
+        //     proj.position.y = config.BAR_Y - config.BAR_THICKNESS / 2 - config.PROJ_SIZE - 1.0;
+        //     return;
+        // }
+        // horz_collision(dt);
+        // vert_collision(dt);
+        // },
     }
 }
 
@@ -341,6 +499,19 @@ pub fn render() void {
         }
     }
 }
+
+fn toAttachState() void {
+    proj.velocity = .zero();
+    state = .ATTACH;
+}
+
+pub fn allTargetDied() bool {
+    for (targets_pool) |target| {
+        if (target.dead) return false;
+    }
+    return true;
+}
+
 pub fn killAll() void {
     for (targets_pool[0..]) |*target| {
         target.dead = true;

@@ -30,15 +30,23 @@ pub const Vector2 = struct {
         return .{ .x = v.x * scalar, .y = v.y * scalar };
     }
 
+    pub fn divide(v: Vector2, scalar: f32) Vector2 {
+        return .{ .x = v.x / scalar, .y = v.y / scalar };
+    }
+
     pub fn normalize(v: Vector2) Vector2 {
         var res: Vector2 = .{ .x = 0, .y = 0 };
-        const length: f32 = @sqrt((v.x * v.x) + (v.y * v.y));
-        if (length > 0) {
-            const ilength: f32 = 1.0 / length;
+        const len: f32 = v.length();
+        if (len > 0) {
+            const ilength: f32 = 1.0 / len;
             res.x = v.x * ilength;
             res.y = v.y * ilength;
         }
         return res;
+    }
+
+    pub fn length(v: Vector2) f32 {
+        return math.sqrt((v.x * v.x) + (v.y * v.y));
     }
 };
 
@@ -115,6 +123,7 @@ pub const Entity = struct {
     velocity: Vector2 = .zero(),
     const Self = @This();
 
+    //TODO: Is this needed?.
     pub fn rect(self: Self) Rectangle {
         return Rectangle.makeV(self.position, self.size);
     }

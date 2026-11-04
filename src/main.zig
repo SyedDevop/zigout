@@ -6,6 +6,9 @@ const Game = @import("Game.zig");
 
 var rand: std.Random = undefined;
 
+extern fn keyPressed(key: u8) void;
+extern fn keyReleased(key: u8) void;
+
 pub fn randomFloat() f32 {
     return rand.float(f32);
 }
@@ -59,39 +62,56 @@ pub fn main(init: std.process.Init) !void {
 
     while (!rl.windowShouldClose()) { // Detect window close button or ESC key
         const dt: f32 = rl.getFrameTime();
-        Game.bar.velocity = .zero();
-        if (rl.isKeyDown(.a) or rl.isKeyDown(.left)) {
-            Game.bar.velocity.x -= 1;
-            Game.left = true;
-        }
-        if (rl.isKeyDown(.d) or rl.isKeyDown(.right)) {
-            Game.bar.velocity.x += 1;
-            Game.right = true;
-        }
-        if (rl.isKeyPressed(.k)) Game.killAll();
+        // Game.bar.velocity = .zero();
+        // if (rl.isKeyDown(.a) or rl.isKeyDown(.left)) {
+        //     Game.bar.velocity.x -= 1;
+        //     Game.left = true;
+        // }
+        // if (rl.isKeyDown(.d) or rl.isKeyDown(.right)) {
+        //     Game.bar.velocity.x += 1;
+        //     Game.right = true;
+        // }
+        // if (rl.isKeyPressed(.k)) Game.killAll();
         if (rl.isKeyPressed(.f3)) show_alive_particle = !show_alive_particle;
         if (rl.isKeyPressed(.f4)) Game.show_fps = !Game.show_fps;
-        if (rl.isKeyPressed(.f5)) Game.god_mode = !Game.god_mode;
-        if (rl.isKeyPressed(.space)) {
-            switch (Game.state) {
-                .PLAY => Game.pause = !Game.pause,
-                .READY => {
-                    const driction: f16 = if (Game.left) 1 else -1;
-                    Game.proj.velocity.x = driction;
-                    Game.state = .PLAY;
+        while (true) {
+            const key = rl.getKeyPressed();
+            if (key == .null) break;
+            const key_caped: u8 = switch (key) {
+                .left => 37,
+                .right => 38,
+                else => brk: {
+                    const ket_to_num: u32 = @intCast(@backingInt(key));
+                    if (ket_to_num < 0 or ket_to_num > 90) break :brk 0;
+                    break :brk @intCast(ket_to_num);
                 },
-                else => {},
-            }
+            };
+            keyPressed(key_caped);
         }
-        switch (Game.state) {
-            .PLAY, .READY, .START, .ATTACH => Game.update(dt),
-            .GAMEOVER, .VICTORY => if (rl.isKeyPressed(.r)) {
-                Game.reset();
-                Game.state = .RESTART;
-            },
-            .RESTART => Game.state = .START,
-            else => {},
-        }
+        if (rl.isKeyReleased(.a) or rl.isKeyReleased(.left)) keyReleased('a');
+        if (rl.isKeyReleased(.d) or rl.isKeyReleased(.right)) keyReleased('d');
+        Game.update(dt);
+        // if (rl.isKeyPressed(.f5)) Game.god_mode = !Game.god_mode;
+        // if (rl.isKeyPressed(.space)) {
+        //     switch (Game.state) {
+        //         .PLAY => Game.pause = !Game.pause,
+        //         .READY => {
+        //             const driction: f16 = if (Game.left) 1 else -1;
+        //             Game.proj.velocity.x = driction;
+        //             Game.state = .PLAY;
+        //         },
+        //         else => {},
+        //     }
+        // }
+        // switch (Game.state) {
+        //     .PLAY, .READY, .START, .ATTACH => Game.update(dt),
+        //     .GAMEOVER, .VICTORY => if (rl.isKeyPressed(.r)) {
+        //         Game.reset();
+        //         Game.state = .RESTART;
+        //     },
+        //     .RESTART => Game.state = .START,
+        //     else => {},
+        // }
         // Draw
         //----------------------------------------------------------------------------------
         rl.beginDrawing();

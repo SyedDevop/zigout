@@ -77,7 +77,7 @@ pub fn findDeclarations(
     loop: for (ast.rootDecls()) |decl| {
         if (ast.fullFnProto(&buffer, decl)) |proto| {
             if (isExportOrExtern(ast, proto.extern_export_inline_token)) {
-                const var_name = if (proto.name_token) |nt| ast.tokenSlice(nt) else {
+                const func_name = if (proto.name_token) |nt| ast.tokenSlice(nt) else {
                     myLog(file_path, ast, decl, .war, "No Name for the function {s}\n", .{ast.getNodeSource(decl)});
                     continue :loop;
                 };
@@ -91,10 +91,11 @@ pub fn findDeclarations(
                 try comments.print(allocator, "{s}/**\n", .{pad});
                 const comment_size = comments.items.len;
 
-                try target_array.print(allocator, "{s}{s} : (", .{ pad, var_name });
+                try target_array.print(allocator, "{s}{s} : (", .{ pad, func_name });
                 var it = proto.iterate(ast);
                 while (it.next()) |ita| {
-                    if (ita.name_token) |nt| try target_array.print(allocator, "{s}: ", .{ast.tokenSlice(nt)});
+                    const parma_name = if (ita.name_token) |nt| ast.tokenSlice(nt) else "";
+                    try target_array.print(allocator, "{s}: ", .{parma_name});
                     if (ita.type_expr) |te| {
                         const type_kind = classifyType(ast, te, file_path);
                         const js_type, const description = type_kind.getJsTypeInfo();
@@ -102,7 +103,7 @@ pub fn findDeclarations(
                             try comments.print(
                                 allocator,
                                 "{s}* @param {{{s}}} {s} - {s}: `{s}`\n",
-                                .{ pad, js_type, var_name, desc, ast.getNodeSource(te) },
+                                .{ pad, js_type, parma_name, desc, ast.getNodeSource(te) },
                             );
                         }
                         try target_array.print(allocator, "{s}, ", .{js_type});
@@ -116,7 +117,7 @@ pub fn findDeclarations(
                         try comments.print(
                             allocator,
                             "{s}* @return {{{s}}} {s} - {s}: `{s}`\n",
-                            .{ pad, js_type, var_name, desc, ast.getNodeSource(rt) },
+                            .{ pad, js_type, func_name, desc, ast.getNodeSource(rt) },
                         );
                     }
                     try target_array.print(allocator, "{s},\n", .{js_type});

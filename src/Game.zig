@@ -316,25 +316,32 @@ fn barCollision(dt: f32) void {
     if (bar.overlaps(proj, bar_nx, null)) return;
     bar.position.x = bar_nx;
 }
+/// Top-left position where `src` rests centered on top of `dest`.
+fn restingPos(src: *const Entity, dest: *const Entity) Vector2 {
+    return .{
+        .x = dest.getCenterX() - src.size.x / 2,
+        .y = dest.position.y - src.size.y,
+    };
+}
+
 fn attachTo(dt: f32, src: *Entity, dest: *Entity) bool {
-    var src_pos = src.getCenter();
-    var best_pos = dest.getCenter();
+    const target = restingPos(src, dest);
+    const delta = target.subtract(src.position);
+    const dist = delta.length();
 
-    var attach_velocity = src.velocity.length();
-    src.*.velocity = best_pos.subtract(src_pos);
-    const len = src.velocity.length();
-    if (len > 0) {
-        attach_velocity += 3500.0 * dt;
-        src.*.velocity = src.velocity.divide(len);
-        src.*.velocity = src.velocity.scale(attach_velocity);
+    const speed = src.velocity.length() + 3500.0 * dt;
+    const step = speed * dt;
+
+    // Arrived (or would overshoot this frame): snap exactly onto the bar.
+    if (dist <= step) {
+        src.*.position = target;
+        src.*.velocity = .zero();
+        return true;
     }
-    //src.position += <<velocity*dt;
-    src.*.position = src.velocity.scale(dt).add(src_pos);
 
-    src_pos = src.getCenter();
-    best_pos = dest.getCenter();
-
-    return src_pos.subtract(best_pos).length() < 40.0;
+    src.*.velocity = delta.divide(dist).scale(speed);
+    src.*.position = src.position.add(src.velocity.scale(dt));
+    return false;
 }
 fn lifeCollision(dt: f32) void {
     // const currProj = life_pool[life - 1];
@@ -449,7 +456,7 @@ pub fn update(dt: f32) void {
         },
         .READY => {
             // this anchor the projectile to bar till .PLAY state
-            proj.setCenterX(bar.getCenterX());
+            proj.position = restingPos(&proj, &bar);
         },
         .PLAY => {
             projCollision(horz_collision2(&proj.position, &proj.velocity, proj.size, dt));

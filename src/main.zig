@@ -61,10 +61,10 @@ pub fn main(init: std.process.Init) !void {
     rl.initAudioDevice();
 
     {
-        collid_sound = try rl.loadSound("assets/sounds/collide.wav");
-        death_sound = try rl.loadSound("assets/sounds/die.wav");
-        lose_sound = try rl.loadSound("assets/sounds/lose.wav");
-        win_sound = try rl.loadSound("assets/sounds/win.wav");
+        collid_sound = try rl.loadSound("public/assets/sounds/collide.wav");
+        death_sound = try rl.loadSound("public/assets/sounds/die.wav");
+        lose_sound = try rl.loadSound("public/assets/sounds/lose.wav");
+        win_sound = try rl.loadSound("public/assets/sounds/win.wav");
     }
 
     defer rl.closeWindow(); // Close window and OpenGL context

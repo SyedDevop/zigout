@@ -59,7 +59,7 @@ pub export fn keyPressed(key: u8) void {
             right = true;
             if (state == .START) state = .ATTACH;
         },
-        // TODO: ask for user conformation if state != GAMEOVER
+        //TASK(20261105-125244): ask for user conformation if state != GAMEOVER
         'r', 'R' => state = .RESTART,
         ' ' => {
             switch (state) {
@@ -138,7 +138,7 @@ pub fn init_bar() void {
     };
 }
 
-//TODO: It will be cool when game is restated. Rise from the fallen position.
+//TASK(20261105-125250): It will be cool when game is restated. Rise from the fallen position.
 pub fn init_projectile() void {
     const life_size = config.BAR_THICKNESS;
     for (&life_pool, 0..) |*life_, i| {

@@ -50,7 +50,6 @@ var randomFloat: *const RandomFloatFn = undefined;
 // @section:State::end
 
 pub export fn keyPressed(key: u8) void {
-    std.log.debug("Got this keyCode: {d} key: `{c}`", .{ key, key });
     switch (key) {
         'A', 'a', 37 => {
             left = true;
@@ -64,8 +63,8 @@ pub export fn keyPressed(key: u8) void {
             switch (state) {
                 .PLAY => pause = !pause,
                 .READY => {
-                    // const driction: f16 = if (left) 1 else -1;
-                    // proj.velocity.x = driction;
+                    const dir: f32 = if (left) -1 else 1;
+                    proj.velocity = .{ .x = dir * config.PROJ_SPEED, .y = -config.PROJ_SPEED };
                     state = .PLAY;
                 },
                 else => {},
@@ -174,7 +173,7 @@ fn reset_target() void {
 pub fn reset() void {
     pause = false;
     score = 0;
-    state = .READY;
+    state = .START;
     life = config.LIVES;
     left = false;
     right = false;
@@ -217,7 +216,7 @@ fn horz_collision2(position: *Vector2, velocity: *Vector2, size: Vector2, dt: f3
     for (&targets_pool, 0..) |*it, i| {
         if (!it.dead and new_r.overlaps(it.rect())) {
             velocity.x *= -1;
-            return Collision.target.add(@intCast(i + 1));
+            return Collision.target.add(@intCast(i));
         }
     }
     position.x = nx;
@@ -227,11 +226,11 @@ fn horz_collision2(position: *Vector2, velocity: *Vector2, size: Vector2, dt: f3
 fn vert_collision2(position: *Vector2, velocity: *Vector2, size: Vector2, dt: f32) Collision {
     const ny = position.y + velocity.y * dt;
     if (ny < 0) {
-        position.y *= -1;
+        velocity.y *= -1;
         return .border_top;
     }
     if (ny + size.x > config.WINDOW_HEIGHT) {
-        position.y *= -1;
+        velocity.y *= -1;
         return .border_bottom;
     }
     const new_r = Rectangle.makeV(.{ .x = position.x, .y = ny }, size);
@@ -243,68 +242,11 @@ fn vert_collision2(position: *Vector2, velocity: *Vector2, size: Vector2, dt: f3
     for (&targets_pool, 0..) |*it, i| {
         if (!it.dead and new_r.overlaps(it.rect())) {
             velocity.y *= -1;
-            return Collision.target.add(@intCast(i + 1));
+            return Collision.target.add(@intCast(i));
         }
     }
     position.y = ny;
     return .no;
-}
-
-fn horz_collision(dt: f32) void {
-    const proj_nx: f32 = proj.position.x + proj.velocity.x * config.PROJ_SPEED * dt;
-    const proj_collided_with_bar = proj.overlaps(bar, proj_nx, null);
-    if (proj_nx < 0 or proj_nx + config.PROJ_SIZE > config.WINDOW_WIDTH or proj_collided_with_bar) {
-        proj.velocity.x *= -1;
-        return;
-    }
-    if (proj_collided_with_bar) particleBurst(bar.rect(), bar.color, config.PARTICLE_BURST_HIT_COUNT);
-    for (targets_pool[0..]) |*it| {
-        if (!it.dead and proj.overlaps(it.*, proj_nx, null)) {
-            //rl.playSound(collid_sound);
-            score += 1;
-            it.dead = true;
-            proj.velocity.x *= -1;
-            particleBurst(proj.rect(), it.color, config.PARTICLE_BURST_HIT_COUNT);
-            return;
-        }
-    }
-    proj.position.x = proj_nx;
-}
-
-fn vert_collision(dt: f32) void {
-    const proj_ny: f32 = proj.position.y + proj.velocity.y * config.PROJ_SPEED * dt;
-    if (proj_ny < 0) {
-        proj.velocity.y *= -1;
-        return;
-    }
-    if (proj_ny + config.PROJ_SIZE > config.WINDOW_HEIGHT) {
-        if (god_mode) {
-            proj.velocity.y += 1.005;
-            proj.velocity.y *= -1;
-            return;
-        }
-        //rl.playSound(death_sound);
-        life -= 1;
-        state = .START;
-        return;
-    }
-    if (proj.overlaps(bar, null, proj_ny)) {
-        if (bar.velocity.x != 0) proj.velocity.x = bar.velocity.x;
-        proj.velocity.y *= -1;
-        particleBurst(bar.rect(), bar.color, config.PARTICLE_BURST_HIT_COUNT);
-        return;
-    }
-    for (targets_pool[0..]) |*it| {
-        if (!it.dead and proj.overlaps(it.*, null, proj_ny)) {
-            //rl.playSound(collid_sound);
-            score += 1;
-            it.dead = true;
-            proj.velocity.y *= -1;
-            particleBurst(proj.rect(), it.color, config.PARTICLE_BURST_HIT_COUNT);
-            return;
-        }
-    }
-    proj.position.y = proj_ny;
 }
 
 fn barCollision(dt: f32) void {
@@ -343,26 +285,6 @@ fn attachTo(dt: f32, src: *Entity, dest: *Entity) bool {
     src.*.position = src.position.add(src.velocity.scale(dt));
     return false;
 }
-fn lifeCollision(dt: f32) void {
-    // const currProj = life_pool[life - 1];
-    // if (!currProj.dead) {
-    //     life_pool[life - 1].dead = true;
-    //     proj = get_life();
-    // }
-    const barPos = bar.getCenter();
-    const projPos = proj.getCenter();
-    const dist = barPos.subtract(projPos).normalize();
-    const proj_nx = proj.position.x + dist.x * (config.PROJ_SPEED * 4) * dt;
-    const proj_ny = proj.position.y + dist.y * (config.PROJ_SPEED * 4) * dt;
-    if (proj.overlaps(bar, proj_nx, proj_ny)) {
-        state = .READY;
-        particleBurst(bar.rect(), bar.color, config.PARTICLE_BURST_HIT_COUNT);
-        return;
-    }
-    proj.position.x = proj_nx;
-    proj.position.y = proj_ny;
-    return;
-}
 
 pub fn updateBar(dt: f32) void {
     bar.velocity = .zero();
@@ -377,37 +299,41 @@ pub fn updateParticle(dt: f32) void {
         alive_particles += 1;
         par.*.position = par.*.position.add(par.*.velocity.scale(dt));
         par.*.lifetime -= dt;
+        _ = horz_collision2(&par.position, &par.velocity, par.sizeV(), dt);
+        _ = vert_collision2(&par.position, &par.velocity, par.sizeV(), dt);
     }
 }
 
 fn projCollision(c: Collision) void {
-    std.log.info("collision: {t}", .{c});
     switch (c) {
         .bar => {
             if (bar.velocity.x != 0) {
                 proj.velocity.x = bar.velocity.x * config.PROJ_SPEED;
             } else {
-                // sign :: inline (x: float) -> float {
-                //     return xx (-cast(int)(x<0) + cast(int)(x>0));
-                // }
                 proj.velocity.x = math.sign(proj.velocity.x) * config.PROJ_SPEED * config.ANGLE_FACTOR;
             }
         },
-        .border_bottom => @panic("TODO: projCollision:bar not implemented"),
-        _ => |n| {
+        .border_bottom => {
+            particleBurst(proj.rect(), proj.color, config.PARTICLE_BURST_DEATH_COUNT);
+            life -|= 1;
+            if (life > 0) {
+                state = .ATTACH;
+            } else {
+                state = .GAMEOVER;
+            }
+        },
+        .target, _ => |n| {
             const ci: usize = @backingInt(Collision.target);
             const ni: usize = @backingInt(n);
-            var target = &targets_pool[ni - ci];
-            target.dead = !target.dead;
+            targetHit(&targets_pool[ni - ci]);
         },
-        .target => unreachable,
         .no, .border_left, .border_top, .border_right => {},
     }
 }
 
 fn targetHit(target: *Entity) void {
     if (target.dead) return;
-    particleBurst(target.react, target.color, config.PARTICLE_BURST_HIT_COUNT);
+    particleBurst(target.rect(), target.color, config.PARTICLE_BURST_HIT_COUNT);
     target.*.dead = true;
     score += 1;
     if (allTargetDied()) {
@@ -419,27 +345,12 @@ pub fn update(dt: f32) void {
     if (pause) return;
     updateBar(dt);
     updateParticle(dt);
-    // if (life <= 0) {
-    //     state = .GAMEOVER;
-    //     //rl.playSound(lose_sound);
-    //     particleBurst(bar.rect(), bar.color, config.PARTICLE_BURST_DEATH_COUNT);
-    //     bar.color.a = 0;
-    //     return;
-    // }
-    // if (score >= config.TARGET_ROWS * config.TARGET_COLS) {
-    //     state = .VICTORY;
-    //     //rl.playSound(win_sound);
-    //     return;
-    // }
-    // bar_collision(dt);
-
     switch (state) {
         .START => {
             state = .ATTACH;
         },
         // This process need to run till the proj has reached to the bar
         .ATTACH => {
-            // lifeCollision(dt);
             //  Think of better way to do this
             {
                 var currProj = &life_pool[life -| 1];
@@ -466,16 +377,6 @@ pub fn update(dt: f32) void {
         .RESTART => @panic("TODO: Game.update:RESTART not implemented"),
         .RESTORE_TARGETS => @panic("TODO: Game.update:RESTORE_TARGETS not implemented"),
         .VICTORY => @panic("TODO: Game.update:VICTORY not implemented"),
-        // else => {
-        // projCollision(horz_collision2(&proj.position, &proj.velocity, proj.size, dt));
-        // projCollision(vert_collision2(&proj.position, &proj.velocity, proj.size, dt));
-        // if (proj.overlaps(bar, null, null)) {
-        //     proj.position.y = config.BAR_Y - config.BAR_THICKNESS / 2 - config.PROJ_SIZE - 1.0;
-        //     return;
-        // }
-        // horz_collision(dt);
-        // vert_collision(dt);
-        // },
     }
 }
 

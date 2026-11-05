@@ -99,7 +99,16 @@ pub const Color = extern struct {
     pub const white = Color.init(255, 255, 255, 255);
     pub const black = Color.init(0, 0, 0, 255);
     pub const blank = Color.init(0, 0, 0, 0);
+
     pub fn init(r: u8, g: u8, b: u8, a: u8) Color {
+        return Color{ .r = r, .g = g, .b = b, .a = a };
+    }
+
+    pub fn fromHex(hex: u32) Color {
+        const a: u8 = @intCast((hex >> 8 * 0) & 255);
+        const r: u8 = @intCast((hex >> 8 * 1) & 255);
+        const g: u8 = @intCast((hex >> 8 * 2) & 255);
+        const b: u8 = @intCast((hex >> 8 * 3) & 255);
         return Color{ .r = r, .g = g, .b = b, .a = a };
     }
 };

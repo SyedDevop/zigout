@@ -1,8 +1,12 @@
 pub export const FPS: u16 = 500;
 pub export const WINDOW_WIDTH: u16 = 1600;
 pub export const WINDOW_HEIGHT: u16 = 900;
-pub const PAUSE_TEXT_FS: u8 = 64;
 pub export const BACKGROUND_COLOR: u32 = 0x181818FF;
+
+pub export const FONT_SIZE: u8 = 64;
+pub export const TEXT_COLOR: u32 = 0xEEEEEEFF;
+
+pub const PAUSE_TEXT_FS: u8 = 64;
 pub const PROJ_SIZE: f32 = 25 * 0.80;
 pub const PROJ_SPEED: f32 = 350;
 pub const PROJ_COLOR = 0xFFFFFFFF;

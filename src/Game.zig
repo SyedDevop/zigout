@@ -16,15 +16,18 @@ const Rectangle = object.Rectangle;
 //extern fn drawReact(react: object.Rectangle, color: object.Color) void;
 pub const DrawReactFn = fn (react: object.Rectangle, color: object.Color) void;
 pub const RandomFloatFn = fn () f32;
-pub const DrawTextFn = fn (text: []const u8, posX: i32, posY: i32, fontSize: i32, color: object.Color) void;
+pub const DrawTextFn = fn (text: []const u8, posX: u32, posY: u32, fontSize: u32, color: object.Color) void;
+pub const MeasureTextFn = fn (text: []const u8, fontSize: u32) usize;
 pub const KeyEventFn = fn (key: u8) void;
 pub const InitConfig = struct {
     drawReact: *const DrawReactFn,
-    //drawText: *const DrawTextFn,
     randomFloat: *const RandomFloatFn,
+    measureText: *const MeasureTextFn,
+    drawText: *const DrawTextFn,
 };
 
 // @section:State
+pub var text_buffer: [120]u8 = @splat(0);
 pub var particle_pool: [255]Particle = @splat(Particle.default);
 pub var targets_pool: [config.TOTAL_ENTITY]Entity = undefined;
 pub var life_pool: [config.LIVES]Entity = undefined;
@@ -45,9 +48,22 @@ pub var state: StateKind = .START;
 pub var bar: Entity = undefined;
 
 var drawReact: *const DrawReactFn = undefined;
-//var drawText: *const DrawTextFn = undefined;
 var randomFloat: *const RandomFloatFn = undefined;
+
+var drawText: *const DrawTextFn = undefined;
+var measureText: *const MeasureTextFn = undefined;
 // @section:State::end
+
+pub fn init(init_config: InitConfig) void {
+    drawReact = init_config.drawReact;
+    drawText = init_config.drawText;
+    randomFloat = init_config.randomFloat;
+    measureText = init_config.measureText;
+
+    init_targets();
+    init_bar();
+    init_projectile();
+}
 
 pub export fn keyPressed(key: u8) void {
     switch (key) {
@@ -85,15 +101,6 @@ pub export fn keyReleased(key: u8) void {
         },
         else => {},
     }
-}
-pub fn init(init_config: InitConfig) void {
-    drawReact = init_config.drawReact;
-    //drawText = init_config.drawText;
-    randomFloat = init_config.randomFloat;
-
-    init_targets();
-    init_bar();
-    init_projectile();
 }
 
 pub fn init_targets() void {
@@ -417,6 +424,34 @@ pub fn render() void {
                 .height = size_mul,
             }, color);
         }
+    }
+
+    const text = std.fmt.bufPrint(&text_buffer, "Score: {d}", .{score}) catch unreachable;
+    var text_wight = measureText(text, 22);
+    var x: u32 = 10;
+    var y: u32 = 10 + 22;
+    drawText(text, x, y, 22, .fromHex(config.TEXT_COLOR));
+    if (pause) {
+        text_wight = measureText(config.PAUSE_T, config.FONT_SIZE);
+        x = @intCast((config.WINDOW_WIDTH - text_wight) / 2);
+        y = @intCast((config.WINDOW_HEIGHT + config.FONT_SIZE) / 2);
+        drawText(config.PAUSE_T, x, y, config.FONT_SIZE, .fromHex(config.TEXT_COLOR));
+    }
+    switch (state) {
+        .ATTACH, .RESTART, .START, .PLAY, .READY, .RESTORE_TARGETS => {},
+        .GAMEOVER => {
+            text_wight = measureText(config.OYL_T, config.FONT_SIZE);
+            x = @intCast((config.WINDOW_WIDTH - text_wight) / 2);
+            y = @intCast((config.WINDOW_HEIGHT - config.FONT_SIZE) / 2);
+
+            drawText(config.OYL_T, x, y, config.FONT_SIZE, .fromHex(config.TEXT_COLOR));
+
+            text_wight = measureText(config.RESTART_T, config.FONT_SIZE);
+            x = @intCast((config.WINDOW_WIDTH - text_wight) / 2);
+            y = @intCast((config.WINDOW_HEIGHT + config.FONT_SIZE) / 2);
+            drawText(config.RESTART_T, x, y, config.FONT_SIZE, .fromHex(config.TEXT_COLOR));
+        },
+        .VICTORY => {},
     }
 }
 

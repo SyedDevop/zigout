@@ -1,14 +1,14 @@
 const std = @import("std");
 
-pub fn buildWasm(b: *std.Build) void {
+pub fn buildWasm(b: *std.Build, host_target: std.Build.ResolvedTarget) void {
     const wasm_stack_size = b.option(u64, "wasm-stack-size", "Stack size for the WASM target");
     const show_what = b.option(bool, "wasm2wat", "Convert WASM to WAT");
+    const gen_bindings = b.option(bool, "gen-bindings", "Generate TypeScript bindings for WASM") orelse false;
     const target = b.resolveTargetQuery(.{
         .cpu_arch = .wasm32,
         .os_tag = .freestanding,
         .ofmt = .wasm,
     });
-
     const wasm_exe = b.addExecutable(.{
         .name = "zbreak-wasm",
         .root_module = b.createModule(.{
@@ -27,6 +27,19 @@ pub fn buildWasm(b: *std.Build) void {
     const wasm_step = b.step("wasm", "Build wasm target");
     wasm_step.dependOn(&install_wasm.step);
 
+    const gen_exe = b.addExecutable(.{
+        .name = "gen-zig-to-ts",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/genrate.zig"),
+            .target = host_target,
+            .optimize = .debug,
+        }),
+    });
+    if (gen_bindings) {
+        const run_gen = b.addRunArtifact(gen_exe);
+        run_gen.setName("Generate TypeScript bindings");
+        wasm_step.dependOn(&run_gen.step);
+    }
     if (show_what orelse false) {
         const run_wat = b.addSystemCommand(&.{"wasm2wat"});
         run_wat.addFileArg(wasm_exe.getEmittedBin());
@@ -83,5 +96,5 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&exe_tests.step);
 
-    buildWasm(b);
+    buildWasm(b, target);
 }

@@ -59,6 +59,8 @@ pub export fn keyPressed(key: u8) void {
             right = true;
             if (state == .START) state = .ATTACH;
         },
+        // TODO: ask for user conformation if state != GAMEOVER
+        'r', 'R' => state = .RESTART,
         ' ' => {
             switch (state) {
                 .PLAY => pause = !pause,
@@ -197,7 +199,7 @@ pub const Collision = enum(u32) {
         return @fromBackingInt(@intCast(ci + value));
     }
 };
-fn horz_collision2(position: *Vector2, velocity: *Vector2, size: Vector2, dt: f32) Collision {
+fn horz_collision2(position: *Vector2, velocity: *Vector2, size: Vector2, dt: f32, ignore_bar: bool) Collision {
     const nx = position.x + velocity.x * dt;
     if (nx < 0) {
         velocity.x *= -1;
@@ -209,7 +211,7 @@ fn horz_collision2(position: *Vector2, velocity: *Vector2, size: Vector2, dt: f3
         return .border_right;
     }
     const new_r = Rectangle.makeV(.{ .x = nx, .y = position.y }, size);
-    if (new_r.overlaps(bar.rect())) {
+    if (!ignore_bar and new_r.overlaps(bar.rect())) {
         velocity.x *= -1;
         return .bar;
     }
@@ -223,7 +225,7 @@ fn horz_collision2(position: *Vector2, velocity: *Vector2, size: Vector2, dt: f3
     return .no;
 }
 
-fn vert_collision2(position: *Vector2, velocity: *Vector2, size: Vector2, dt: f32) Collision {
+fn vert_collision2(position: *Vector2, velocity: *Vector2, size: Vector2, dt: f32, ignore_bar: bool) Collision {
     const ny = position.y + velocity.y * dt;
     if (ny < 0) {
         velocity.y *= -1;
@@ -234,7 +236,7 @@ fn vert_collision2(position: *Vector2, velocity: *Vector2, size: Vector2, dt: f3
         return .border_bottom;
     }
     const new_r = Rectangle.makeV(.{ .x = position.x, .y = ny }, size);
-    if (new_r.overlaps(bar.rect())) {
+    if (!ignore_bar and new_r.overlaps(bar.rect())) {
         velocity.y *= -1;
         return .bar;
     }
@@ -299,8 +301,8 @@ pub fn updateParticle(dt: f32) void {
         alive_particles += 1;
         par.*.position = par.*.position.add(par.*.velocity.scale(dt));
         par.*.lifetime -= dt;
-        _ = horz_collision2(&par.position, &par.velocity, par.sizeV(), dt);
-        _ = vert_collision2(&par.position, &par.velocity, par.sizeV(), dt);
+        _ = horz_collision2(&par.position, &par.velocity, par.sizeV(), dt, true);
+        _ = vert_collision2(&par.position, &par.velocity, par.sizeV(), dt, true);
     }
 }
 
@@ -370,11 +372,21 @@ pub fn update(dt: f32) void {
             proj.position = restingPos(&proj, &bar);
         },
         .PLAY => {
-            projCollision(horz_collision2(&proj.position, &proj.velocity, proj.size, dt));
-            projCollision(vert_collision2(&proj.position, &proj.velocity, proj.size, dt));
+            projCollision(horz_collision2(&proj.position, &proj.velocity, proj.size, dt, false));
+            projCollision(vert_collision2(&proj.position, &proj.velocity, proj.size, dt, false));
         },
-        .GAMEOVER => @panic("TODO: Game.update:GAMEOVER not implemented"),
-        .RESTART => @panic("TODO: Game.update:RESTART not implemented"),
+        .GAMEOVER => {
+            if (!bar.dead) {
+                bar.dead = true;
+                particleBurst(bar.rect(), bar.color, config.PARTICLE_BURST_DEATH_COUNT);
+            }
+            const a: u8 = @intFromFloat(dt * 255 * 1.3);
+            bar.color.a -|= a;
+            proj.color.a -|= a;
+        },
+        .RESTART => {
+            reset();
+        },
         .RESTORE_TARGETS => @panic("TODO: Game.update:RESTORE_TARGETS not implemented"),
         .VICTORY => @panic("TODO: Game.update:VICTORY not implemented"),
     }

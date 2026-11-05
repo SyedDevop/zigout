@@ -1,6 +1,7 @@
 const std = @import("std");
 const math = std.math;
 const object = @import("object.zig");
+const config = @import("config.zig");
 
 pub const Particle = @This();
 position: object.Vector2,
@@ -15,6 +16,15 @@ pub const default = Particle{
     .color = .{ .r = 255, .g = 255, .b = 255, .a = 255 },
     .lifetime = 0,
 };
+
+pub inline fn size(self: *const Particle) f32 {
+    return self.size_multiplayer * config.PARTICLE_BASE_SIZE;
+}
+
+pub inline fn sizeV(self: *const Particle) object.Vector2 {
+    const size_ = self.size();
+    return .{ .x = size_, .y = size_ };
+}
 
 pub fn isAlive(self: *const Particle) bool {
     return self.lifetime > 0;

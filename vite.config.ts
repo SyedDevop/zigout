@@ -9,7 +9,7 @@ function zigWasm(optimize: string): Plugin {
   const build = () => {
     return execFileSync(
       "zig",
-      ["build", "wasm", "--verbose"],
+      ["build", "wasm", "--verbose", "-Dgen-bindings"],
       // "zig",
       // ["wasm", `WASM_SRC="${WASM_SRC}"`, `WASM_OUT="${WASM_OUT}"`, `WASM_OPT="${optimize}"`],
       { stdio: "inherit" },

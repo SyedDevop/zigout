@@ -66,6 +66,7 @@ pub fn init(init_config: InitConfig) void {
 }
 
 pub export fn keyPressed(key: u8) void {
+    // std.log.info("keyPressed: Key:({c}) Code:({d})", .{ key, key });
     switch (key) {
         'A', 'a', 37 => {
             left = true;
@@ -75,8 +76,14 @@ pub export fn keyPressed(key: u8) void {
             right = true;
             if (state == .START) state = .ATTACH;
         },
+        'l', 'L' => {
+            killAll();
+            state = .VICTORY;
+        },
         //TASK(20261105-125244): ask for user conformation if state != GAMEOVER
-        'r', 'R' => state = .RESTART,
+        'r', 'R' => {
+            if (state == .GAMEOVER or state == .VICTORY) state = .RESTART;
+        },
         ' ' => {
             switch (state) {
                 .PLAY => pause = !pause,
@@ -395,7 +402,7 @@ pub fn update(dt: f32) void {
             reset();
         },
         .RESTORE_TARGETS => @panic("TODO: Game.update:RESTORE_TARGETS not implemented"),
-        .VICTORY => @panic("TODO: Game.update:VICTORY not implemented"),
+        .VICTORY => {},
     }
 }
 
@@ -431,27 +438,29 @@ pub fn render() void {
     var x: u32 = 10;
     var y: u32 = 10 + 22;
     drawText(text, x, y, 22, .fromHex(config.TEXT_COLOR));
+
     if (pause) {
         text_wight = measureText(config.PAUSE_T, config.FONT_SIZE);
         x = @intCast((config.WINDOW_WIDTH - text_wight) / 2);
         y = @intCast((config.WINDOW_HEIGHT + config.FONT_SIZE) / 2);
         drawText(config.PAUSE_T, x, y, config.FONT_SIZE, .fromHex(config.TEXT_COLOR));
+    } else if (state == .GAMEOVER or state == .VICTORY) {
+        text_wight = measureText(config.RESTART_T, config.FONT_SIZE);
+        x = @intCast((config.WINDOW_WIDTH - text_wight) / 2);
+        y = @intCast((config.WINDOW_HEIGHT + config.FONT_SIZE) / 2);
+        drawText(config.RESTART_T, x, y, config.FONT_SIZE, .fromHex(config.TEXT_COLOR));
     }
-    switch (state) {
-        .ATTACH, .RESTART, .START, .PLAY, .READY, .RESTORE_TARGETS => {},
-        .GAMEOVER => {
-            text_wight = measureText(config.OYL_T, config.FONT_SIZE);
-            x = @intCast((config.WINDOW_WIDTH - text_wight) / 2);
-            y = @intCast((config.WINDOW_HEIGHT - config.FONT_SIZE) / 2);
-
-            drawText(config.OYL_T, x, y, config.FONT_SIZE, .fromHex(config.TEXT_COLOR));
-
-            text_wight = measureText(config.RESTART_T, config.FONT_SIZE);
-            x = @intCast((config.WINDOW_WIDTH - text_wight) / 2);
-            y = @intCast((config.WINDOW_HEIGHT + config.FONT_SIZE) / 2);
-            drawText(config.RESTART_T, x, y, config.FONT_SIZE, .fromHex(config.TEXT_COLOR));
-        },
-        .VICTORY => {},
+    if (state == .GAMEOVER) {
+        text_wight = measureText(config.OYL_T, config.FONT_SIZE);
+        x = @intCast((config.WINDOW_WIDTH - text_wight) / 2);
+        y = @intCast((config.WINDOW_HEIGHT - config.FONT_SIZE) / 2);
+        drawText(config.OYL_T, x, y, config.FONT_SIZE, .fromHex(config.TEXT_COLOR));
+    }
+    if (state == .VICTORY) {
+        text_wight = measureText(config.WON_T, config.FONT_SIZE);
+        x = @intCast((config.WINDOW_WIDTH - text_wight) / 2);
+        y = @intCast((config.WINDOW_HEIGHT - config.FONT_SIZE) / 2);
+        drawText(config.WON_T, x, y, config.FONT_SIZE, .fromHex(config.TEXT_COLOR));
     }
 }
 

@@ -462,7 +462,7 @@ fn toAttachState() void {
 
 pub fn allTargetDied() bool {
     for (targets_pool) |target| {
-        if (target.dead) return false;
+        if (!target.dead) return false;
     }
     return true;
 }

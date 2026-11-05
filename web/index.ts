@@ -2,7 +2,6 @@ import wasmUrl from "game.wasm?url";
 import { loadWasm, type WasmImports } from "./wasm.ts";
 
 const canvas = document.getElementById("canvas") as HTMLCanvasElement | null;
-const fpsText = document.getElementById("fps-value") as HTMLSpanElement | null;
 if (!canvas) throw new Error("no canvas found");
 const ctx = canvas.getContext("2d");
 if (!ctx) throw new Error("no canvas context found");
@@ -12,31 +11,44 @@ let memory: WebAssembly.Memory | null = null;
 const decoder = new TextDecoder();
 const logFns = [console.error, console.warn, console.info, console.debug] as const;
 
+const readString = (ptr: number, len: number): string | null => {
+  if (!memory) return null;
+  return decoder.decode(new Uint8Array(memory.buffer, ptr, len));
+};
+
+const hexColor = (r: number, g: number, b: number, a: number): string => {
+  const red = r.toString(16).padStart(2, "0");
+  const green = g.toString(16).padStart(2, "0");
+  const blue = b.toString(16).padStart(2, "0");
+  const alpha = a.toString(16).padStart(2, "0");
+  return `#${red}${green}${blue}${alpha}`;
+};
+
 const imports = {
   env: {
-    randomFloatJs: () => Math.random(),
-    logJs: (level: number, ptr: number, len: number) => {
-      if (!memory) return;
+    jsRandomFloat: () => Math.random(),
+    jsLog: (level: number, ptr: number, len: number) => {
       // Re-read memory.buffer each call: it is replaced whenever wasm memory grows.
-      const msg = decoder.decode(new Uint8Array(memory.buffer, ptr, len));
+      const msg = readString(ptr, len) ?? "Wasm Memory";
       (logFns[level] ?? console.log)(`[zig] ${msg}`);
     },
-    drawReactJs: (
-      x: number,
-      y: number,
-      w: number,
-      h: number,
-      r: number,
-      g: number,
-      b: number,
-      a: number,
-    ) => {
-      const red = r.toString(16).padStart(2, "0");
-      const green = g.toString(16).padStart(2, "0");
-      const blue = b.toString(16).padStart(2, "0");
-      const alpha = a.toString(16).padStart(2, "0");
-      ctx.fillStyle = `#${red}${green}${blue}${alpha}`;
+
+    jsDrawReact: (x, y, w, h, r, g, b, a) => {
+      ctx.fillStyle = hexColor(r, g, b, a);
       ctx.fillRect(x, y, w, h);
+    },
+    jsDrawText: (ptr, len, pos_x, pos_y, font_size, r, g, b, a) => {
+      const text = readString(ptr, len);
+      if (!text) return;
+      ctx.font = `${font_size}px sans-serif`;
+      ctx.fillStyle = hexColor(r, g, b, a);
+      ctx.fillText(text, pos_x, pos_y);
+    },
+    jsMeasureText: (ptr, len, font_size) => {
+      const text = readString(ptr, len);
+      if (!text) return 0;
+      ctx.font = `${font_size}px sans-serif`;
+      return ctx.measureText(text).width;
     },
   },
 } satisfies WasmImports;

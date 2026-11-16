@@ -66,11 +66,15 @@ canvas.width = WIDTH;
 canvas.height = HEIGHT;
 exports.init();
 
-let lastTime: number | null = null;
+let lastTime: number;
 
+function firstFrame(timestamp: number) {
+  lastTime = timestamp;
+  frames(timestamp);
+}
 function frames(timestamp: number) {
   // First frame has no previous timestamp; clamp so a tab switch can't produce a giant step.
-  const dt = lastTime === null ? 0 : Math.min((timestamp - lastTime) / 1000, 0.0166);
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.0166);
   lastTime = timestamp;
 
   exports.update(dt);
@@ -79,7 +83,7 @@ function frames(timestamp: number) {
   exports.render();
   window.requestAnimationFrame(frames);
 }
-window.requestAnimationFrame(frames);
+window.requestAnimationFrame(firstFrame);
 
 document.addEventListener("keydown", (e) => {
   switch (e.key) {

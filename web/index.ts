@@ -53,7 +53,18 @@ const imports = {
   },
 } satisfies WasmImports;
 
-const { instance } = await loadWasm(wasmUrl, imports);
+const loader = document.getElementById("loader");
+const loaderText = document.getElementById("loader-text");
+
+let loaded: Awaited<ReturnType<typeof loadWasm>>;
+try {
+  loaded = await loadWasm(wasmUrl, imports);
+} catch (err) {
+  loader?.classList.add("error");
+  if (loaderText) loaderText.textContent = "Failed to load the game. Please refresh.";
+  throw err;
+}
+const { instance } = loaded;
 const exports = instance.exports;
 memory = exports.memory;
 const view = new DataView(exports.memory.buffer);
@@ -84,8 +95,15 @@ function frames(timestamp: number) {
   window.requestAnimationFrame(frames);
 }
 window.requestAnimationFrame(firstFrame);
+document.body.classList.add("ready");
+canvas.focus();
+
+// Keys the game handles; stop the browser from scrolling or activating focused buttons.
+const GAME_KEYS = new Set(["ArrowLeft", "ArrowRight", " "]);
 
 document.addEventListener("keydown", (e) => {
+  if (GAME_KEYS.has(e.key)) e.preventDefault();
+  if (e.repeat) return;
   switch (e.key) {
     case "ArrowLeft":
       exports.keyPressed(37);
@@ -98,7 +116,6 @@ document.addEventListener("keydown", (e) => {
   }
 });
 document.addEventListener("keyup", (e) => {
-  console.log("KeyUp", e.key);
   switch (e.key) {
     case "ArrowLeft":
       exports.keyReleased(37);

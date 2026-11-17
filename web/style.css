@@ -240,16 +240,46 @@ kbd {
 }
 
 @keyframes rotate-hint {
-  0%, 30% {
+
+  0%,
+  30% {
     transform: rotate(0deg);
   }
 
-  60%, 100% {
+  60%,
+  100% {
     transform: rotate(-90deg);
   }
 }
 
+/* ---------- mobile: fill the screen ---------- */
+body.mobile #head,
+body.mobile footer {
+  display: none;
+}
+
+body.mobile #app {
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+body.mobile #stage {
+  min-width: 0;
+}
+
+body.mobile #canvas {
+  /* fill the stage; object-fit keeps the 16:9 game letterboxed instead of stretched */
+  width: 80%;
+  height: 100%;
+  object-fit: contain;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
+
   #loader .ball,
   #gate .phone {
     animation: none;

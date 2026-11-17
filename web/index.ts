@@ -2,27 +2,22 @@ import wasmUrl from "game.wasm?url";
 import { loadWasm, type WasmImports } from "./wasm.ts";
 import { hexColor, isMobile } from "./utils.ts";
 
-const controls = document.getElementById("controls");
-const header = document.getElementById("head");
 const canvas = document.getElementById("canvas") as HTMLCanvasElement | null;
 if (!canvas) throw new Error("no canvas found");
 const ctx = canvas.getContext("2d");
 if (!ctx) throw new Error("no canvas context found");
 
-if (isMobile()) {
-  if (controls) controls.style.display = "none";
-  if (header) header.style.display = "none";
-}
+// Mobile layout: hide header/controls and fit the canvas to the screen (see style.css).
+if (isMobile()) document.body.classList.add("mobile");
 
-// On mobile, block play until the user goes full screen or rotates to landscape.
+// On mobile, block play until the user goes full screen.
 const gate = document.getElementById("gate");
 const gateError = document.getElementById("gate-error");
 const btn = document.getElementById("fl-btn");
-const landscape = window.matchMedia("(orientation: landscape)");
 
 const updateGate = () => {
   if (!gate) return;
-  const ok = !isMobile() || landscape.matches || !!document.fullscreenElement;
+  const ok = !isMobile() || !!document.fullscreenElement;
   gate.hidden = ok;
   if (ok) canvas.focus();
 };
@@ -35,7 +30,7 @@ btn?.addEventListener("click", async () => {
     }
   } catch {
     if (gateError) {
-      gateError.textContent = "Full screen isn't available here — please rotate your phone.";
+      gateError.textContent = "Full screen was blocked — tap the button to try again.";
       gateError.hidden = false;
     }
     return;
@@ -49,7 +44,6 @@ btn?.addEventListener("click", async () => {
   updateGate();
 });
 
-landscape.addEventListener("change", updateGate);
 document.addEventListener("fullscreenchange", updateGate);
 updateGate();
 

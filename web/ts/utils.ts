@@ -4,10 +4,19 @@ export const isMobile = (): boolean => {
   return phone || hasTouch;
 };
 
-export const hexColor = (r: number, g: number, b: number, a: number): string => {
+type HexColor = {
+  (v: number): string;
+  (r: number, g: number, b: number, a: number): string;
+};
+export const hexColor: HexColor = (r: number, g?: number, b?: number, a?: number): string => {
+  if (g === undefined) {
+    return `#${r.toString(16).padStart(8, "0")}`;
+  }
+
   const red = r.toString(16).padStart(2, "0");
   const green = g.toString(16).padStart(2, "0");
-  const blue = b.toString(16).padStart(2, "0");
-  const alpha = a.toString(16).padStart(2, "0");
+  const blue = b!.toString(16).padStart(2, "0");
+  const alpha = a!.toString(16).padStart(2, "0");
+
   return `#${red}${green}${blue}${alpha}`;
 };

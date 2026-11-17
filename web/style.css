@@ -183,8 +183,75 @@ kbd {
   border-radius: 5px;
 }
 
+/* ---------- rotate / full screen gate ---------- */
+#gate {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  padding: var(--gutter);
+  text-align: center;
+  background: radial-gradient(ellipse at center, var(--bg-glow) 0%, var(--bg) 75%);
+  background-color: var(--bg);
+}
+
+#gate[hidden] {
+  display: none;
+}
+
+#gate h2 {
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+#gate p {
+  max-width: 28ch;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+#gate .phone {
+  width: 40px;
+  height: 68px;
+  border: 3px solid var(--fg);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  animation: rotate-hint 2s ease-in-out infinite;
+}
+
+#fl-btn {
+  margin-top: 6px;
+  padding: 12px 22px;
+  font: inherit;
+  font-weight: 700;
+  color: var(--bg);
+  background: var(--accent);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+#gate .gate-error {
+  color: #e74c3c;
+}
+
+@keyframes rotate-hint {
+  0%, 30% {
+    transform: rotate(0deg);
+  }
+
+  60%, 100% {
+    transform: rotate(-90deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  #loader .ball {
+  #loader .ball,
+  #gate .phone {
     animation: none;
   }
 }

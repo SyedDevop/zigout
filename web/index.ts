@@ -1,10 +1,57 @@
 import wasmUrl from "game.wasm?url";
 import { loadWasm, type WasmImports } from "./wasm.ts";
+import { hexColor, isMobile } from "./utils.ts";
 
+const controls = document.getElementById("controls");
+const header = document.getElementById("head");
 const canvas = document.getElementById("canvas") as HTMLCanvasElement | null;
 if (!canvas) throw new Error("no canvas found");
 const ctx = canvas.getContext("2d");
 if (!ctx) throw new Error("no canvas context found");
+
+if (isMobile()) {
+  if (controls) controls.style.display = "none";
+  if (header) header.style.display = "none";
+}
+
+// On mobile, block play until the user goes full screen or rotates to landscape.
+const gate = document.getElementById("gate");
+const gateError = document.getElementById("gate-error");
+const btn = document.getElementById("fl-btn");
+const landscape = window.matchMedia("(orientation: landscape)");
+
+const updateGate = () => {
+  if (!gate) return;
+  const ok = !isMobile() || landscape.matches || !!document.fullscreenElement;
+  gate.hidden = ok;
+  if (ok) canvas.focus();
+};
+
+btn?.addEventListener("click", async () => {
+  if (gateError) gateError.hidden = true;
+  try {
+    if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+      await document.documentElement.requestFullscreen();
+    }
+  } catch {
+    if (gateError) {
+      gateError.textContent = "Full screen isn't available here — please rotate your phone.";
+      gateError.hidden = false;
+    }
+    return;
+  }
+  // Orientation lock is unsupported on many browsers (e.g. iOS); full screen alone is enough.
+  try {
+    await (
+      screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }
+    ).lock?.("landscape");
+  } catch {}
+  updateGate();
+});
+
+landscape.addEventListener("change", updateGate);
+document.addEventListener("fullscreenchange", updateGate);
+updateGate();
 
 // Set after instantiation; logJs is only called from exported functions, never during instantiate.
 let memory: WebAssembly.Memory | null = null;
@@ -14,14 +61,6 @@ const logFns = [console.error, console.warn, console.info, console.debug] as con
 const readString = (ptr: number, len: number): string | null => {
   if (!memory) return null;
   return decoder.decode(new Uint8Array(memory.buffer, ptr, len));
-};
-
-const hexColor = (r: number, g: number, b: number, a: number): string => {
-  const red = r.toString(16).padStart(2, "0");
-  const green = g.toString(16).padStart(2, "0");
-  const blue = b.toString(16).padStart(2, "0");
-  const alpha = a.toString(16).padStart(2, "0");
-  return `#${red}${green}${blue}${alpha}`;
 };
 
 const imports = {

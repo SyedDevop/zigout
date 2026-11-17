@@ -15,7 +15,7 @@
 
 	<body>
 		<div id="app">
-			<header>
+			<header id="head">
 				<img src="/favicon.svg" alt="" aria-hidden="true">
 				<h1>Z<span>-Break</span></h1>
 				<span class="tag">Zig + Wasm</span>
@@ -29,6 +29,13 @@
 				</div>
 			</main>
 
+			<div id="gate" role="dialog" aria-modal="true" aria-labelledby="gate-title" hidden>
+				<div class="phone" aria-hidden="true"></div>
+				<h2 id="gate-title">Rotate your phone</h2>
+				<p>Z-Break plays in landscape. Turn your device sideways or go full screen.</p>
+				<button id="fl-btn" type="button">Play full screen</button>
+				<p id="gate-error" class="gate-error" hidden></p>
+			</div>
 			<footer>
 				<ul id="controls" aria-label="Keyboard controls">
 					<li><kbd>←</kbd><kbd>→</kbd>

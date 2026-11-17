@@ -1,12 +1,14 @@
 {
   "name": "web",
-  "private": true,
   "version": "0.0.0",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "preview": "vite preview",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "sync:pi": "bun run build && rsync -avz --delete ./dist/ uz_pi:~/apps/zbreak/",
+    "sync:pi-dry": "bun run build && rsync -navz --delete ./dist/ uz_pi:~/apps/zbreak/"
   },
   "devDependencies": {
     "typescript": "~7.0.2",

@@ -3,6 +3,9 @@ const math = std.math;
 const object = @import("object.zig");
 const Game = @import("Game.zig");
 const conf = @import("config.zig");
+// The default std.log writer needs OS I/O, which wasm32-freestanding lacks,
+// so route logs to the JS console instead.
+pub const std_options: std.Options = .{ .logFn = wasmLog };
 
 /// level: 0 = err, 1 = warn, 2 = info, 3 = debug (matches std.log.Level).
 extern fn jsLog(level: u8, ptr: [*]const u8, len: usize) void;
@@ -22,9 +25,25 @@ extern fn jsMeasureText(text: [*]const u8, text_len: usize, font_size: u32) usiz
 ///  }
 ///
 extern fn jsEmitCollision(event: u32) void;
-// The default std.log writer needs OS I/O, which wasm32-freestanding lacks,
-// so route logs to the JS console instead.
-pub const std_options: std.Options = .{ .logFn = wasmLog };
+/// this enum event will be emitted
+/// pub const StateKind = enum {
+///     // Waiting until the player proves that they can move (with A/D keys)
+///     START,
+///     // The ball from the life bar rapidly moving towards the paddle to attach to it
+///     ATTACH,
+///     // The ball is attached to the paddle and waiting until the player presses SPACE
+///     READY,
+///     // Just the usual game play until the ball hits the bottom
+///     PLAY,
+///     // Ran out of lifes before destroying all the targets
+///     GAMEOVER,
+///     // Start the whole game from scratch
+///     RESTART,
+///     // Destroyed all the targets
+///     VICTORY,
+///     RESTORE_TARGETS,
+/// };
+extern fn jsEmitGameState(event: u32) void;
 
 fn wasmLog(comptime level: std.log.Level, comptime scope: @EnumLiteral(), comptime format: []const u8, args: anytype) void {
     const prefix = if (scope == .default) "" else "(" ++ @tagName(scope) ++ "): ";
@@ -55,6 +74,9 @@ fn measureText(text: []const u8, fontSize: u32) usize {
 fn emitCollision(c: Game.Collision) void {
     return jsEmitCollision(@backingInt(c));
 }
+fn emitGameState(c: object.StateKind) void {
+    return jsEmitGameState(@backingInt(c));
+}
 
 export fn init() void {
     const game_init_config = Game.InitConfig{
@@ -63,6 +85,7 @@ export fn init() void {
         .drawText = drawText,
         .measureText = measureText,
         .emitCollision = emitCollision,
+        .emitGameState = emitGameState,
     };
     Game.init(game_init_config);
 }

@@ -20,12 +20,14 @@ pub const DrawTextFn = fn (text: []const u8, posX: u32, posY: u32, fontSize: u32
 pub const MeasureTextFn = fn (text: []const u8, fontSize: u32) usize;
 pub const KeyEventFn = fn (key: u8) void;
 pub const EmitCollisionFn = fn (c: Collision) void;
+pub const EmitGameStateFn = fn (c: StateKind) void;
 pub const InitConfig = struct {
     drawReact: *const DrawReactFn,
     randomFloat: *const RandomFloatFn,
     measureText: *const MeasureTextFn,
     drawText: *const DrawTextFn,
     emitCollision: *const EmitCollisionFn,
+    emitGameState: *const EmitGameStateFn,
 };
 
 // @section:State
@@ -55,6 +57,7 @@ var randomFloat: *const RandomFloatFn = undefined;
 var drawText: *const DrawTextFn = undefined;
 var measureText: *const MeasureTextFn = undefined;
 var emitCollision: *const EmitCollisionFn = undefined;
+var emitGameState: *const EmitGameStateFn = undefined;
 // @section:State::end
 
 pub fn init(init_config: InitConfig) void {
@@ -63,6 +66,7 @@ pub fn init(init_config: InitConfig) void {
     randomFloat = init_config.randomFloat;
     measureText = init_config.measureText;
     emitCollision = init_config.emitCollision;
+    emitGameState = init_config.emitGameState;
 
     init_targets();
     init_bar();
@@ -74,19 +78,19 @@ pub export fn keyPressed(key: u8) void {
     switch (key) {
         'A', 'a', 37 => {
             left = true;
-            if (state == .START) state = .ATTACH;
+            if (state == .START) updateState(.ATTACH);
         },
         'D', 'd', 38 => {
             right = true;
-            if (state == .START) state = .ATTACH;
+            if (state == .START) updateState(.ATTACH);
         },
         'l', 'L' => {
             killAll();
-            state = .VICTORY;
+            updateState(.VICTORY);
         },
         //TASK(20261105-125244): ask for user conformation if state != GAMEOVER
         'r', 'R' => {
-            if (state == .GAMEOVER or state == .VICTORY) state = .RESTART;
+            if (state == .GAMEOVER or state == .VICTORY) updateState(.RESTART);
         },
         ' ' => {
             switch (state) {
@@ -94,7 +98,7 @@ pub export fn keyPressed(key: u8) void {
                 .READY => {
                     const dir: f32 = if (left) -1 else 1;
                     proj.velocity = .{ .x = dir * config.PROJ_SPEED, .y = -config.PROJ_SPEED };
-                    state = .PLAY;
+                    updateState(.PLAY);
                 },
                 else => {},
             }
@@ -141,7 +145,10 @@ pub fn init_targets() void {
         }
     }
 }
-
+fn updateState(new_sate: StateKind) void {
+    state = new_sate;
+    emitGameState(new_sate);
+}
 pub fn init_bar() void {
     bar = .{
         .color = .red,
@@ -193,7 +200,7 @@ fn reset_target() void {
 pub fn reset() void {
     pause = false;
     score = 0;
-    state = .START;
+    updateState(.START);
     life = config.LIVES;
     left = false;
     right = false;
@@ -337,9 +344,9 @@ fn projCollision(c: Collision) void {
             particleBurst(proj.rect(), proj.color, config.PARTICLE_BURST_DEATH_COUNT);
             life -|= 1;
             if (life > 0) {
-                state = .ATTACH;
+                updateState(.ATTACH);
             } else {
-                state = .GAMEOVER;
+                updateState(.GAMEOVER);
             }
         },
         .target, _ => |n| {
@@ -358,7 +365,7 @@ fn targetHit(target: *Entity) void {
     target.*.dead = true;
     score += 1;
     if (allTargetDied()) {
-        state = .VICTORY;
+        updateState(.VICTORY);
     }
 }
 
@@ -368,7 +375,7 @@ pub fn update(dt: f32) void {
     updateParticle(dt);
     switch (state) {
         .START => {
-            state = .ATTACH;
+            updateState(.ATTACH);
         },
         // This process need to run till the proj has reached to the bar
         .ATTACH => {
@@ -382,7 +389,7 @@ pub fn update(dt: f32) void {
             }
             if (attachTo(dt, &proj, &bar)) {
                 particleBurst(bar.rect(), bar.color, config.PARTICLE_BURST_HIT_COUNT);
-                state = .READY;
+                updateState(.READY);
                 //rl.playSound(attach_sound);
             }
         },
@@ -471,7 +478,7 @@ pub fn render() void {
 
 fn toAttachState() void {
     proj.velocity = .zero();
-    state = .ATTACH;
+    updateState(.ATTACH);
 }
 
 pub fn allTargetDied() bool {

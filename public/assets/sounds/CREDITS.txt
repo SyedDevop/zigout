@@ -1,5 +1,6 @@
 Used Sounds:
-    - collide.wav                   - https://opengameart.org/content/gui-sound-effects-4
-    - lose.wav                      - https://opengameart.org/content/gui-sound-effects-4
-    - die.wav -> Jingle_Lose_00.wav - https://opengameart.org/content/8-bit-sound-effects-library
-    - win.wav -> Jingle_Win_00.wav  - https://opengameart.org/content/8-bit-sound-effects-library
+    - collide.wav                      - https://opengameart.org/content/gui-sound-effects-4
+    - lose.wav                         - https://opengameart.org/content/gui-sound-effects-4
+    - die.wav    -> Jingle_Lose_00.wav - https://opengameart.org/content/8-bit-sound-effects-library
+    - win.wav    -> Jingle_Win_00.wav  - https://opengameart.org/content/8-bit-sound-effects-library
+    - attach.wav -> Pickup_03.wav      - https://opengameart.org/content/8-bit-sound-effects-library

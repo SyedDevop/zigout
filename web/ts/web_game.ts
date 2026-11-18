@@ -21,6 +21,9 @@ export class Game {
   private sounds = {
     die: new Audio("/assets/sounds/die.wav"),
     collide: new Audio("/assets/sounds/collide.wav"),
+    win: new Audio("/assets/sounds/win.wav"),
+    lose: new Audio("/assets/sounds/lose.wav"),
+    attach: new Audio("/assets/sounds/attach.wav"),
   };
   constructor() {
     const canvas = document.getElementById("canvas") as HTMLCanvasElement | null;
@@ -102,11 +105,14 @@ export class Game {
           return this.ctx.measureText(text).width;
         },
         jsEmitCollision: (e) => {
-          if (e >= 6 || (e >= 1 && e <= 3)) {
-            this.playAudio("collide");
-          } else if (e === 4) {
-            this.playAudio("die");
-          }
+          if (e >= 6 || (e >= 1 && e <= 3)) this.playAudio("collide");
+          else if (e === 4) this.playAudio("die");
+        },
+        jsEmitGameState: (e) => {
+          if (e == 2) {
+            //this.playAudio("attach");
+          } else if (e == 4) this.playAudio("lose");
+          else if (e == 7) this.playAudio("win");
         },
       },
     } satisfies WasmImports;

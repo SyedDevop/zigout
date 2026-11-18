@@ -1,6 +1,9 @@
-.PHONY: wasm wasm2wat serve main
+.PHONY: wasm wasm2wat serve main main-wasm
 
 main: 
+	 zig build
+
+main-wasm: 
 	 zig build wasm -Dgen-bindings
 
 WASM_SRC := ./web/game.zig

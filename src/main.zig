@@ -49,6 +49,21 @@ pub var collid_sound: rl.Sound = undefined;
 pub var death_sound: rl.Sound = undefined;
 pub var lose_sound: rl.Sound = undefined;
 pub var win_sound: rl.Sound = undefined;
+fn receiveCollision(rx: Game.Collision) void {
+    switch (rx) {
+        .border_bottom => rl.playSound(death_sound),
+        .border_left, .border_right, .border_top, .target, _ => rl.playSound(collid_sound),
+        .bar, .no => {},
+    }
+}
+
+fn receiveGameState(rx: object.StateKind) void {
+    switch (rx) {
+        .GAMEOVER => rl.playSound(win_sound),
+        .VICTORY => rl.playSound(lose_sound),
+        else => {},
+    }
+}
 pub fn main(init: std.process.Init) !void {
     {
         var seed: u64 = undefined;
@@ -75,6 +90,8 @@ pub fn main(init: std.process.Init) !void {
         .randomFloat = randomFloat,
         .drawText = drawText,
         .measureText = measureText,
+        .emitCollision = receiveCollision,
+        .emitGameState = receiveGameState,
     };
     Game.init(game_init_config);
     while (!rl.windowShouldClose()) { // Detect window close button or ESC key

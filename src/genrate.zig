@@ -35,6 +35,37 @@ pub const TypeKind = union(enum) {
     }
 };
 
+fn tokenSliceForRender(tree: *const Ast, token_index: Ast.TokenIndex) []const u8 {
+    var ret = tree.tokenSlice(token_index);
+    switch (tree.tokenTag(token_index)) {
+        .container_doc_comment, .doc_comment => {
+            ret = std.mem.trimEnd(u8, ret, &std.ascii.whitespace);
+        },
+        else => {},
+    }
+    return ret;
+}
+
+fn dumpDocComment(ast: *const Ast, end_token: Ast.TokenIndex, gpa: std.mem.Allocator, w: *ArrayString, pad: []const u8) !void {
+    // Search backwards for the first doc comment.
+    if (end_token == 0) return;
+    var tok = end_token - 1;
+    while (ast.tokenTag(tok) == .doc_comment) {
+        if (tok == 0) break;
+        tok -= 1;
+    } else {
+        tok += 1;
+    }
+
+    const first_tok = tok;
+    if (first_tok == end_token) return;
+    try w.print(gpa, "{s}* @remarks  Zig documentation:\n", .{pad});
+    while (ast.tokenTag(tok) == .doc_comment) : (tok += 1) {
+        const comment = tokenSliceForRender(ast, tok);
+        try w.print(gpa, "{s}* {s}\n", .{ pad, comment });
+    }
+}
+
 fn classifyType(tree: *const Ast, node: Ast.Node.Index, file_path: []const u8) TypeKind {
     switch (tree.nodeTag(node)) {
         .optional_type => return .optional,
@@ -75,6 +106,7 @@ pub fn findDeclarations(
 
     var buffer: [1]Ast.Node.Index = undefined;
     loop: for (ast.rootDecls()) |decl| {
+        const token_index1 = ast.firstToken(decl);
         if (ast.fullFnProto(&buffer, decl)) |proto| {
             if (isExportOrExtern(ast, proto.extern_export_inline_token)) {
                 const func_name = if (proto.name_token) |nt| ast.tokenSlice(nt) else {
@@ -90,7 +122,6 @@ pub fn findDeclarations(
                 comments.clearRetainingCapacity();
                 try comments.print(allocator, "{s}/**\n", .{pad});
                 const comment_size = comments.items.len;
-
                 try target_array.print(allocator, "{s}{s} : (", .{ pad, func_name });
                 var it = proto.iterate(ast);
                 while (it.next()) |ita| {
@@ -122,6 +153,7 @@ pub fn findDeclarations(
                     }
                     try target_array.print(allocator, "{s},\n", .{js_type});
                 }
+                try dumpDocComment(ast, token_index1, allocator, &comments, pad);
                 if (comments.items.len > comment_size) {
                     try comments.print(allocator, "{s}*/\n", .{pad});
                     const comments_slice = try comments.toOwnedSlice(allocator);
@@ -146,7 +178,13 @@ pub fn findDeclarations(
                 declarations += 1;
                 const is_extern = isExtern(ast, var_decl.extern_export_token);
                 const target_array = if (is_extern) extern_array else exports_array;
+                const target_array_len = target_array.items.len;
                 const pad = if (is_extern) "   " else " ";
+
+                comments.clearRetainingCapacity();
+                try comments.print(allocator, "{s}/**\n", .{pad});
+                const comment_size = comments.items.len;
+
                 if (description) |desc| {
                     const main_tok = ast.firstToken(decl);
                     const loc = ast.tokenLocation(0, main_tok);
@@ -164,6 +202,15 @@ pub fn findDeclarations(
                     try target_array.print(allocator, "{s}*/\n", .{pad});
                 }
                 try target_array.print(allocator, "{s}{s} : {s},\n", .{ pad, var_name, js_type });
+
+                try dumpDocComment(ast, token_index1, allocator, &comments, pad);
+                if (comments.items.len > comment_size) {
+                    try comments.print(allocator, "{s}*/\n", .{pad});
+                    const comments_slice = try comments.toOwnedSlice(allocator);
+                    defer allocator.free(comments_slice);
+
+                    try target_array.insertSlice(allocator, target_array_len, comments_slice);
+                }
             }
         }
     }

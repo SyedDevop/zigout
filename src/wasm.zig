@@ -10,7 +10,18 @@ extern fn jsDrawReact(x: f32, y: f32, width: f32, height: f32, r: u8, g: u8, b: 
 extern fn jsRandomFloat() f32;
 extern fn jsDrawText(text: [*]const u8, text_len: usize, pos_x: u32, pos_y: u32, font_size: u32, r: u8, g: u8, b: u8, a: u8) void;
 extern fn jsMeasureText(text: [*]const u8, text_len: usize, font_size: u32) usize;
-
+/// This will emmit
+/// const Collision = enum(u32) {
+///  border_left,    -> 1
+///  border_right,   -> 2
+///  border_top,     -> 3
+///  border_bottom,  -> 4
+///  bar,            -> 5
+///  target,         -> 6>..n
+///  _
+///  }
+///
+extern fn jsEmitCollision(event: u32) void;
 // The default std.log writer needs OS I/O, which wasm32-freestanding lacks,
 // so route logs to the JS console instead.
 pub const std_options: std.Options = .{ .logFn = wasmLog };
@@ -32,11 +43,17 @@ fn randomFloat() f32 {
 fn drawReact(react: object.Rectangle, color: object.Color) void {
     jsDrawReact(react.x, react.y, react.width, react.height, color.r, color.g, color.b, color.a);
 }
+
 fn drawText(text: []const u8, posX: u32, posY: u32, fontSize: u32, color: object.Color) void {
     jsDrawText(text.ptr, text.len, posX, posY, fontSize, color.r, color.g, color.b, color.a);
 }
+
 fn measureText(text: []const u8, fontSize: u32) usize {
     return jsMeasureText(text.ptr, text.len, fontSize);
+}
+
+fn emitCollision(c: Game.Collision) void {
+    return jsEmitCollision(@backingInt(c));
 }
 
 export fn init() void {
@@ -45,6 +62,7 @@ export fn init() void {
         .randomFloat = randomFloat,
         .drawText = drawText,
         .measureText = measureText,
+        .emitCollision = emitCollision,
     };
     Game.init(game_init_config);
 }

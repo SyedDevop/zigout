@@ -19,11 +19,13 @@ pub const RandomFloatFn = fn () f32;
 pub const DrawTextFn = fn (text: []const u8, posX: u32, posY: u32, fontSize: u32, color: object.Color) void;
 pub const MeasureTextFn = fn (text: []const u8, fontSize: u32) usize;
 pub const KeyEventFn = fn (key: u8) void;
+pub const EmitCollisionFn = fn (c: Collision) void;
 pub const InitConfig = struct {
     drawReact: *const DrawReactFn,
     randomFloat: *const RandomFloatFn,
     measureText: *const MeasureTextFn,
     drawText: *const DrawTextFn,
+    emitCollision: *const EmitCollisionFn,
 };
 
 // @section:State
@@ -52,6 +54,7 @@ var randomFloat: *const RandomFloatFn = undefined;
 
 var drawText: *const DrawTextFn = undefined;
 var measureText: *const MeasureTextFn = undefined;
+var emitCollision: *const EmitCollisionFn = undefined;
 // @section:State::end
 
 pub fn init(init_config: InitConfig) void {
@@ -59,6 +62,7 @@ pub fn init(init_config: InitConfig) void {
     drawText = init_config.drawText;
     randomFloat = init_config.randomFloat;
     measureText = init_config.measureText;
+    emitCollision = init_config.emitCollision;
 
     init_targets();
     init_bar();
@@ -345,6 +349,7 @@ fn projCollision(c: Collision) void {
         },
         .no, .border_left, .border_top, .border_right => {},
     }
+    if (c != .no) emitCollision(c);
 }
 
 fn targetHit(target: *Entity) void {

@@ -33,3 +33,4 @@ dist-ssr
 web/game.wasm
 /web/game.wasm
 /web/wasm.ts
+/web/ts/wasm.ts

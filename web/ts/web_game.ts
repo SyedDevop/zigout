@@ -93,6 +93,15 @@ export class Game {
           this.ctx.font = `${font_size}px sans-serif`;
           return this.ctx.measureText(text).width;
         },
+        jsEmitCollision: (e) => {
+          if (e >= 6 || (e >= 1 && e <= 3)) {
+            const collide = new Audio("/assets/sounds/collide.wav");
+            collide.play();
+          } else if (e === 4) {
+            const die = new Audio("/assets/sounds/die.wav");
+            die.play();
+          }
+        },
       },
     } satisfies WasmImports;
 
@@ -113,5 +122,16 @@ export class Game {
   readString(ptr: number, len: number): string | null {
     if (!this.memory) return null;
     return decoder.decode(new Uint8Array(this.memory.buffer, ptr, len));
+  }
+
+  static createSoundPool(src: string, size = 5) {
+    const pool = Array.from({ length: size }, () => new Audio(src));
+    let index = 0;
+    return function play() {
+      const audio = pool[index];
+      index = (index + 1) % pool.length;
+      audio.currentTime = 0;
+      audio.play();
+    };
   }
 }

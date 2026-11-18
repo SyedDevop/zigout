@@ -17,6 +17,11 @@ export class Game {
   BG_COLOR!: number;
 
   lastTime: number = 0;
+
+  private sounds = {
+    die: new Audio("/assets/sounds/die.wav"),
+    collide: new Audio("/assets/sounds/collide.wav"),
+  };
   constructor() {
     const canvas = document.getElementById("canvas") as HTMLCanvasElement | null;
     if (!canvas) throw new Error("no canvas found");
@@ -24,6 +29,9 @@ export class Game {
     if (!ctx) throw new Error("no canvas context found");
     this.canvas = canvas;
     this.ctx = ctx;
+    for (const audio of Object.values(this.sounds)) {
+      audio.load();
+    }
   }
   initialize() {
     if (!this.gameLoaded) {
@@ -95,11 +103,9 @@ export class Game {
         },
         jsEmitCollision: (e) => {
           if (e >= 6 || (e >= 1 && e <= 3)) {
-            const collide = new Audio("/assets/sounds/collide.wav");
-            collide.play();
+            this.playAudio("collide");
           } else if (e === 4) {
-            const die = new Audio("/assets/sounds/die.wav");
-            die.play();
+            this.playAudio("die");
           }
         },
       },
@@ -124,6 +130,9 @@ export class Game {
     return decoder.decode(new Uint8Array(this.memory.buffer, ptr, len));
   }
 
+  playAudio(audioName: keyof typeof this.sounds) {
+    (this.sounds[audioName].cloneNode() as HTMLAudioElement).play();
+  }
   static createSoundPool(src: string, size = 5) {
     const pool = Array.from({ length: size }, () => new Audio(src));
     let index = 0;
